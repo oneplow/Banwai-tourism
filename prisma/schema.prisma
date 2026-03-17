@@ -1,0 +1,170 @@
+// This is your Prisma schema file
+// Learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  user_id       Int      @id @default(autoincrement())
+  username      String   @db.VarChar(100)
+  email         String   @unique @db.VarChar(150)
+  password_hash String   @db.VarChar(255)
+  role          UserRole @default(staff)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  staff_permissions StaffPermission[]
+  review_replies    ReviewReply[]
+  announcements     Announcement[]
+
+  @@map("users")
+}
+
+model Category {
+  category_id Int    @id @default(autoincrement())
+  name        String @db.VarChar(100)
+  icon        String @db.VarChar(100)
+  sort_order  Int    @default(0)
+
+  places Place[]
+
+  @@map("categories")
+}
+
+model Place {
+  place_id     Int      @id @default(autoincrement())
+  category_id  Int
+  name         String   @db.VarChar(200)
+  description  String?  @db.Text
+  history      String?  @db.Text
+  latitude     Decimal  @db.Decimal(10, 7)
+  longitude    Decimal  @db.Decimal(10, 7)
+  address      String?  @db.VarChar(255)
+  phone        String?  @db.VarChar(20)
+  open_hours   String?  @db.VarChar(100)
+  cover_image  String?  @db.VarChar(255)
+  map_x        Float?
+  map_y        Float?
+  view_count   Int      @default(0)
+  is_active    Boolean  @default(true)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  category          Category          @relation(fields: [category_id], references: [category_id])
+  images            PlaceImage[]
+  staff_permissions StaffPermission[]
+  reviews           Review[]
+  favorites         Favorite[]
+  view_stats        ViewStat[]
+
+  @@map("places")
+}
+
+model PlaceImage {
+  image_id   Int    @id @default(autoincrement())
+  place_id   Int
+  image_url  String @db.VarChar(255)
+  caption    String? @db.VarChar(255)
+  sort_order Int    @default(0)
+
+  place Place @relation(fields: [place_id], references: [place_id])
+
+  @@map("place_images")
+}
+
+model StaffPermission {
+  id          Int      @id @default(autoincrement())
+  user_id     Int
+  place_id    Int
+  assigned_at DateTime @default(now())
+
+  user  User  @relation(fields: [user_id], references: [user_id])
+  place Place @relation(fields: [place_id], references: [place_id])
+
+  @@unique([user_id, place_id])
+  @@map("staff_permissions")
+}
+
+model Review {
+  review_id  Int          @id @default(autoincrement())
+  place_id   Int
+  guest_name String       @db.VarChar(100)
+  rating     Int          @db.TinyInt
+  comment    String?      @db.Text
+  status     ReviewStatus @default(pending)
+  created_at DateTime     @default(now())
+
+  place   Place         @relation(fields: [place_id], references: [place_id])
+  replies ReviewReply[]
+
+  @@map("reviews")
+}
+
+model ReviewReply {
+  reply_id   Int      @id @default(autoincrement())
+  review_id  Int
+  user_id    Int
+  reply_text String   @db.Text
+  created_at DateTime @default(now())
+
+  review Review @relation(fields: [review_id], references: [review_id])
+  user   User   @relation(fields: [user_id], references: [user_id])
+
+  @@map("review_replies")
+}
+
+model Announcement {
+  announcement_id Int      @id @default(autoincrement())
+  user_id         Int
+  title           String   @db.VarChar(200)
+  content         String   @db.Text
+  image_url       String?  @db.VarChar(255)
+  is_published    Boolean  @default(false)
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  user User @relation(fields: [user_id], references: [user_id])
+
+  @@map("announcements")
+}
+
+model Favorite {
+  favorite_id Int      @id @default(autoincrement())
+  session_id  String   @db.VarChar(100)
+  place_id    Int
+  created_at  DateTime @default(now())
+
+  place Place @relation(fields: [place_id], references: [place_id])
+
+  @@unique([session_id, place_id])
+  @@map("favorites")
+}
+
+model ViewStat {
+  stat_id    Int      @id @default(autoincrement())
+  place_id   Int
+  view_date  DateTime @db.Date
+  view_count Int      @default(0)
+
+  place Place @relation(fields: [place_id], references: [place_id])
+
+  @@unique([place_id, view_date])
+  @@map("view_stats")
+}
+
+enum UserRole {
+  admin
+  staff
+}
+
+enum ReviewStatus {
+  pending
+  approved
+  hidden
+}
