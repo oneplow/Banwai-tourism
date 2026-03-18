@@ -49,8 +49,6 @@ model Place {
   phone        String?  @db.VarChar(20)
   open_hours   String?  @db.VarChar(100)
   cover_image  String?  @db.VarChar(255)
-  map_x        Float?
-  map_y        Float?
   view_count   Int      @default(0)
   is_active    Boolean  @default(true)
   created_at   DateTime @default(now())

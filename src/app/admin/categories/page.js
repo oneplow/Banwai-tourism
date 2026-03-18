@@ -29,22 +29,22 @@ export default function AdminCategoriesPage() {
     const isNew = modal === "add";
     const url = isNew ? "/api/categories" : `/api/categories/${modal.category_id}`;
     const method = isNew ? "POST" : "PUT";
-    
+
     // Convert sort_order to number
     const body = { ...form, sort_order: parseInt(form.sort_order) || 0 };
-    
+
     const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const data = await res.json();
     setSaving(false);
-    
+
     if (!res.ok) { toast(data.error || "เกิดข้อผิดพลาด", "error"); return; }
-    
-    if (isNew) { 
-      setCategories([...categories, { ...data, _count: { places: 0 } }].sort((a,b) => a.sort_order - b.sort_order)); 
-      toast("เพิ่มหมวดหมู่สำเร็จ"); 
-    } else { 
-      setCategories(categories.map((c) => c.category_id === modal.category_id ? { ...c, ...data } : c).sort((a,b) => a.sort_order - b.sort_order)); 
-      toast("อัปเดตสำเร็จ"); 
+
+    if (isNew) {
+      setCategories([...categories, { ...data, _count: { places: 0 } }].sort((a, b) => a.sort_order - b.sort_order));
+      toast("เพิ่มหมวดหมู่สำเร็จ");
+    } else {
+      setCategories(categories.map((c) => c.category_id === modal.category_id ? { ...c, ...data } : c).sort((a, b) => a.sort_order - b.sort_order));
+      toast("อัปเดตสำเร็จ");
     }
     setModal(null);
   };
@@ -138,7 +138,7 @@ export default function AdminCategoriesPage() {
       </div>
 
       {modal && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4 py-8">
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4 py-8" onClick={(e) => e.target === e.currentTarget && setModal(null)}>
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
             <h3 className="font-display font-bold text-xl text-gray-800 mb-5">
               {modal === "add" ? "เพิ่มหมวดหมู่ใหม่" : `แก้ไข: ${modal.name}`}

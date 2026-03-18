@@ -64,13 +64,22 @@ export default function FeaturedCarousel({ places = [] }) {
               onClick={(e) => isDragging && e.preventDefault()}
               className="flex-shrink-0 snap-start relative w-[260px] sm:w-[300px] h-[360px] rounded-3xl overflow-hidden group select-none"
             >
-              {/* Gradient background */}
-              <div className={`absolute inset-0 bg-gradient-to-br ${grad}`} />
-
-              {/* Category icon */}
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white/20 text-8xl select-none pointer-events-none">
-                {place.category?.icon}
-              </div>
+              {/* Background Cover Image or Gradient Fallback */}
+              {place.cover_image ? (
+                <img
+                  src={place.cover_image}
+                  alt={place.name}
+                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
+                  draggable={false}
+                />
+              ) : (
+                <>
+                  <div className={`absolute inset-0 bg-gradient-to-br ${grad}`} />
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white/20 text-8xl select-none pointer-events-none transition-transform duration-700 group-hover:scale-110">
+                    {place.category?.icon}
+                  </div>
+                </>
+              )}
 
               {/* Subtle overlay at bottom */}
               <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />

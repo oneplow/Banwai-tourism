@@ -5,14 +5,6 @@ import MapView from "@/components/MapView";
 import FeaturedCarousel from "@/components/FeaturedCarousel";
 import { Bot, Heart, Copyright, MapPin, Compass, Users, Megaphone } from "lucide-react";
 
-const PIN_DEFAULTS = [
-  { place_id: 1, map_x: 188, map_y: 230 },
-  { place_id: 2, map_x: 258, map_y: 180 },
-  { place_id: 3, map_x: 210, map_y: 310 },
-  { place_id: 4, map_x: 155, map_y: 290 },
-  { place_id: 5, map_x: 220, map_y: 390 },
-];
-
 function serializePlace(p) {
   return {
     ...p,
@@ -46,16 +38,6 @@ export default async function HomePage() {
   // Serialize for client components (fix Decimal issue)
   const serializedPlaces = allPlaces.map(serializePlace);
 
-  // Prepare map coordinates
-  const placesWithCoords = allPlaces.map((p, i) => {
-    const pin = PIN_DEFAULTS.find((d) => d.place_id === p.place_id);
-    return {
-      ...serializePlace(p),
-      map_x: pin?.map_x ?? 180 + (i * 30) % 140,
-      map_y: pin?.map_y ?? 200 + (i * 50) % 260,
-    };
-  });
-
   return (
     <>
       <Navbar />
@@ -73,7 +55,7 @@ export default async function HomePage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               {announcements.map((ann) => (
                 <div key={ann.announcement_id} className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-                  <div className="text-[10px] text-[#40916c] font-medium mb-1.5">
+                  <div suppressHydrationWarning className="text-[10px] text-[#40916c] font-medium mb-1.5">
                     {new Date(ann.created_at).toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" })}
                   </div>
                   <h3 className="font-display font-semibold text-gray-900 text-sm mb-1 leading-snug">{ann.title}</h3>
@@ -85,21 +67,7 @@ export default async function HomePage() {
         </section>
       )}
 
-      {/* ── 2. Categories ── */}
-      <section className="max-w-6xl mx-auto px-4 pt-8 pb-4">
-        <h2 className="font-display text-xl font-bold text-[#1b4332] mb-4">หมวดหมู่</h2>
-        <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
-          {categories.map((cat) => (
-            <Link key={cat.category_id} href={`/places?category=${cat.category_id}`}
-              className="group bg-white rounded-2xl p-4 text-center border border-gray-100 hover:border-[#2d6a4f]/30 hover:shadow-md transition-all">
-              <div className="text-3xl mb-2 group-hover:scale-110 transition-transform inline-block">{cat.icon}</div>
-              <div className="text-xs text-gray-600 font-medium leading-snug">{cat.name}</div>
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      {/* ── 3. Featured Places Carousel ── */}
+      {/* ── 2. Featured Places Carousel ── */}
       <section className="py-6">
         <div className="max-w-6xl mx-auto px-4 flex items-center justify-between mb-4">
           <h2 className="font-display text-xl font-bold text-[#1b4332]">สถานที่แนะนำ</h2>
@@ -110,11 +78,11 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* ── 4. Feature Cards ── */}
+      {/* ── 3. Feature Cards ── */}
       <section className="max-w-6xl mx-auto px-4 pb-8">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {[
-            { icon: <Compass className="w-7 h-7" />, title: "แผนที่สถานที่", desc: "ดูสถานที่บนแผนที่ตำบลบ้านหวาย กดเลือกเพื่อดูรายละเอียด", href: "/map", btn: "เปิดแผนที่" },
+            { icon: <Compass className="w-7 h-7" />, title: "แผนที่สถานที่", desc: "ดูสถานที่บนแผนที่จริง กดเลือกเพื่อดูรายละเอียด", href: "/map", btn: "เปิดแผนที่" },
             { icon: <Bot className="w-7 h-7" />, title: "วางแผนทริป AI", desc: "บอกความสนใจ AI จะออกแบบเส้นทางท่องเที่ยวให้อัตโนมัติ", href: "/trip", btn: "จัดทริปเลย", accent: true },
             { icon: <Heart className="w-7 h-7" />, title: "สถานที่ถูกใจ", desc: "บันทึกสถานที่ที่ชอบไว้ดูภายหลัง ไม่ต้องสมัครสมาชิก", href: "/favorites", btn: "ดูรายการ" },
           ].map((f) => (
@@ -132,24 +100,18 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* ── 5. Map Section (compact with custom scrollbar) ── */}
+      {/* ── 4. Map Section ── */}
       <section className="max-w-6xl mx-auto px-4 pb-10">
         <div className="mb-4">
           <h2 className="font-display text-xl font-bold text-[#1b4332] mb-1">แผนที่ท่องเที่ยว</h2>
-          <p className="text-gray-400 text-xs">คลิกที่ pin บนแผนที่เพื่อดูข้อมูลสถานที่</p>
+          <p className="text-gray-400 text-xs">คลิกที่หมุดบนแผนที่เพื่อดูข้อมูลสถานที่</p>
         </div>
-        <div className="rounded-2xl overflow-hidden border border-gray-200 shadow-sm map-compact">
-          <MapView places={placesWithCoords} categories={categories} />
+        <div className="rounded-2xl overflow-hidden border border-gray-200 shadow-sm">
+          <MapView places={serializedPlaces} categories={categories} />
         </div>
-        <style>{`
-          .map-compact ::-webkit-scrollbar { width: 6px; height: 6px; }
-          .map-compact ::-webkit-scrollbar-track { background: #f1f5f0; border-radius: 6px; }
-          .map-compact ::-webkit-scrollbar-thumb { background: #2d6a4f44; border-radius: 6px; }
-          .map-compact ::-webkit-scrollbar-thumb:hover { background: #2d6a4f88; }
-        `}</style>
       </section>
 
-      {/* ── 6. Footer with Stats ── */}
+      {/* ── 5. Footer with Stats ── */}
       <footer className="bg-[#1b4332] text-green-200 px-4">
         <div className="max-w-6xl mx-auto py-8 text-center text-sm">
           <div className="font-display text-white text-xl font-bold mb-2">ตำบลบ้านหวาย</div>

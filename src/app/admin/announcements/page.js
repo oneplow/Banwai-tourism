@@ -60,7 +60,7 @@ export default function AdminAnnouncementsPage() {
                 </span>
               </div>
               <p className="text-xs text-gray-500 line-clamp-2">{item.content}</p>
-              <p className="text-xs text-gray-400 mt-1">{new Date(item.created_at).toLocaleDateString("th-TH", { year:"numeric",month:"long",day:"numeric" })}</p>
+              <p suppressHydrationWarning className="text-xs text-gray-400 mt-1">{new Date(item.created_at).toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" })}</p>
             </div>
             <button onClick={() => openEdit(item)} className="text-xs px-2.5 py-1 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 flex-shrink-0">
               แก้ไข
@@ -71,7 +71,7 @@ export default function AdminAnnouncementsPage() {
       </div>
 
       {modal && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4" onClick={(e) => e.target === e.currentTarget && setModal(null)}>
           <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl">
             <h3 className="font-display font-bold text-lg text-gray-800 mb-5">{modal === "add" ? "เพิ่มประกาศ" : "แก้ไขประกาศ"}</h3>
             <div className="space-y-4">

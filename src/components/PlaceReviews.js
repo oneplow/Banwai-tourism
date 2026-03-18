@@ -12,21 +12,21 @@ export default function PlaceReviews({ placeId, initialReviews = [], avgRating =
     e.preventDefault();
     if (!form.guest_name) return;
     setStatus("loading");
-    
+
     try {
       const res = await fetch("/api/reviews", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...form, place_id: placeId }),
       });
-      
+
       if (res.ok) {
         const newReview = await res.json();
         // Optimistically add to top of list with "pending" badge
         setReviews([{ ...newReview, replies: [], isNew: true }, ...reviews]);
         setStatus("success");
         setForm({ guest_name: "", rating: 5, comment: "" });
-        
+
         // Hide success message after 3 seconds
         setTimeout(() => setStatus("idle"), 3000);
       } else {
@@ -132,12 +132,12 @@ export default function PlaceReviews({ placeId, initialReviews = [], avgRating =
                 </div>
                 <div className="flex items-center gap-2">
                   <StarRating rating={review.rating} size="sm" />
-                  <span className="text-xs text-gray-400">
+                  <span suppressHydrationWarning className="text-xs text-gray-400">
                     {new Date(review.created_at).toLocaleDateString("th-TH")}
                   </span>
                 </div>
               </div>
-              
+
               {review.comment && (
                 <p className="text-gray-600 text-sm leading-relaxed mt-2.5">
                   {review.comment}

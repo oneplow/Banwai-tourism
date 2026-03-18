@@ -19,27 +19,17 @@ export default async function MapPage() {
     prisma.category.findMany({ orderBy: { sort_order: "asc" } }),
   ]);
 
-  // Assign default map coordinates per category if not in DB
-  // In production, store map_x / map_y in the places table
-  const PIN_DEFAULTS = [
-    { place_id: 1, map_x: 188, map_y: 230 },
-    { place_id: 2, map_x: 258, map_y: 180 },
-    { place_id: 3, map_x: 210, map_y: 310 },
-    { place_id: 4, map_x: 155, map_y: 290 },
-    { place_id: 5, map_x: 220, map_y: 390 },
-  ];
-
-  const placesWithCoords = places.map((p, i) => {
-    const pin = PIN_DEFAULTS.find((d) => d.place_id === p.place_id);
-    return {
-      ...p,
-      map_x: pin?.map_x ?? 180 + (i * 30) % 140,
-      map_y: pin?.map_y ?? 200 + (i * 50) % 260,
-      // Prisma Decimal → plain number
-      latitude: p.latitude ? Number(p.latitude) : null,
-      longitude: p.longitude ? Number(p.longitude) : null,
-    };
-  });
+  // Serialize Decimal → number for client components
+  const serializedPlaces = places.map((p) => ({
+    ...p,
+    latitude: p.latitude ? Number(p.latitude) : null,
+    longitude: p.longitude ? Number(p.longitude) : null,
+    created_at: p.created_at?.toISOString?.() ?? p.created_at,
+    updated_at: p.updated_at?.toISOString?.() ?? p.updated_at,
+    category: p.category
+      ? { ...p.category, created_at: undefined, updated_at: undefined }
+      : null,
+  }));
 
   return (
     <>
@@ -53,10 +43,10 @@ export default async function MapPage() {
             แผนที่ท่องเที่ยว
           </h1>
           <p className="text-gray-500 text-sm">
-            คลิกที่ pin บนแผนที่หรือเลือกจากรายการเพื่อดูข้อมูลสถานที่
+            คลิกที่หมุดบนแผนที่หรือเลือกจากรายการเพื่อดูข้อมูลสถานที่
           </p>
         </div>
-        <MapView places={placesWithCoords} categories={categories} />
+        <MapView places={serializedPlaces} categories={categories} />
       </div>
     </>
   );

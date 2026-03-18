@@ -1,7 +1,54 @@
 "use client";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, MapPin, Clock, Phone, Image as ImageIcon } from "lucide-react";
+import { Eye, MapPin, Clock, Phone, Image as ImageIcon, Navigation, Loader2 } from "lucide-react";
+import dynamic from "next/dynamic";
+
+// Dynamically import Leaflet components (SSR incompatible)
+const MapContainer = dynamic(
+  () => import("react-leaflet").then((mod) => mod.MapContainer),
+  { ssr: false }
+);
+const TileLayer = dynamic(
+  () => import("react-leaflet").then((mod) => mod.TileLayer),
+  { ssr: false }
+);
+const Marker = dynamic(
+  () => import("react-leaflet").then((mod) => mod.Marker),
+  { ssr: false }
+);
+const Popup = dynamic(
+  () => import("react-leaflet").then((mod) => mod.Popup),
+  { ssr: false }
+);
+const Polyline = dynamic(
+  () => import("react-leaflet").then((mod) => mod.Polyline),
+  { ssr: false }
+);
+
+function FlyToPosition({ position, zoom }) {
+  if (typeof window === "undefined") return null;
+  const { useMap } = require("react-leaflet");
+  const map = useMap();
+  useEffect(() => {
+    if (position) {
+      map.flyTo(position, zoom || 16, { duration: 1.5 });
+    }
+  }, [position, zoom, map]);
+  return null;
+}
+const FlyToDynamic = dynamic(() => Promise.resolve(FlyToPosition), { ssr: false });
+
+function createUserIcon() {
+  if (typeof window === "undefined") return null;
+  const L = require("leaflet");
+  return L.divIcon({
+    className: "gps-marker",
+    html: `<div style="width:16px; height:16px; background:#3b82f6; border:3px solid white; border-radius:50%; box-shadow:0 0 10px rgba(59,130,246,0.6);"></div>`,
+    iconSize: [16, 16],
+    iconAnchor: [8, 8],
+  });
+}
 
 const CATEGORY_COLORS = {
   "วัด / ศาสนสถาน": "#f59e0b",
@@ -17,44 +64,139 @@ function getPinColor(categoryName) {
   return CATEGORY_COLORS[categoryName] || DEFAULT_COLOR;
 }
 
-// Pulse ring animation keyframes injected once
-const PULSE_STYLE = `
-  @keyframes mapPulse {
-    0%   { r: 12; opacity: 0.6; }
-    100% { r: 22; opacity: 0; }
-  }
-  .map-pulse { animation: mapPulse 2s ease-out infinite; }
-`;
+// บ้านหวาย หล่มสัก เพชรบูรณ์
+const CENTER = { lat: 16.7599, lng: 101.2921 };
+const DEFAULT_ZOOM = 14;
+
+function createCategoryIcon(categoryName, isActive = false) {
+  if (typeof window === "undefined") return null;
+  const L = require("leaflet");
+  const color = getPinColor(categoryName);
+  const size = isActive ? 40 : 32;
+
+  return L.divIcon({
+    className: "custom-map-marker",
+    html: `<div style="
+      width: ${size}px; height: ${size}px;
+      background: ${color};
+      border: 3px solid white;
+      border-radius: 50%;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      display: flex; align-items: center; justify-content: center;
+      transition: all 0.2s;
+      ${isActive ? "transform: scale(1.2); box-shadow: 0 4px 12px rgba(0,0,0,0.4);" : ""}
+    "><svg xmlns='http://www.w3.org/2000/svg' width='${size * 0.45}' height='${size * 0.45}' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><path d='M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z'/><circle cx='12' cy='10' r='3'/></svg></div>`,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    popupAnchor: [0, -size / 2],
+  });
+}
 
 export default function MapView({ places = [], categories = [] }) {
   const router = useRouter();
   const [activeId, setActiveId] = useState(null);
   const [filterCat, setFilterCat] = useState(null);
-  const [tooltip, setTooltip] = useState(null); // { x, y, name }
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailPlace, setDetailPlace] = useState(null);
+  const [mapReady, setMapReady] = useState(false);
+  const [flyTarget, setFlyTarget] = useState(null);
+  const [userLoc, setUserLoc] = useState(null);
+  const [locating, setLocating] = useState(false);
+  const [routePath, setRoutePath] = useState(null);
+
+  const locateUser = () => {
+    setLocating(true);
+    if (!navigator.geolocation) {
+      alert("เบราว์เซอร์ของคุณไม่รองรับ GPS หรือเว็บไซต์ไม่ได้ทำงานบน HTTPS");
+      setLocating(false);
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const coords = [pos.coords.latitude, pos.coords.longitude];
+        setUserLoc(coords);
+        setFlyTarget(coords);
+        setLocating(false);
+      },
+      (err) => {
+        console.warn("Geolocation error:", err);
+        if (err.code === 1) alert("การเข้าถึงตำแหน่งถูกปฏิเสธ (คุณต้องกดยอมรับ Permission ในเบราว์เซอร์ด้วย)");
+        else if (err.code === 2) alert("ไม่สามารถระบุตำแหน่งได้ (อุปกรณ์อาจแจ้งตำแหน่งไม่ได้ในขณะนี้)");
+        else if (err.code === 3) alert("หมดเวลาในการหาตำแหน่ง (Timeout) กรุณาลองใหม่ในที่โล่ง");
+        else alert("เกิดข้อผิดพลาดในการดึงตำแหน่ง กรุณาเปิดระบบ GPS ของอุปกรณ์");
+        setLocating(false);
+      },
+      { enableHighAccuracy: false, timeout: 15000, maximumAge: 10000 }
+    );
+  };
+
+  useEffect(() => {
+    // Load Leaflet CSS
+    if (typeof window !== "undefined") {
+      const link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+      document.head.appendChild(link);
+      setMapReady(true);
+    }
+  }, []);
+
+  // Fetch actual driving route using free OSRM API 
+  useEffect(() => {
+    if (userLoc && detailPlace?.latitude && detailPlace?.longitude) {
+      const fetchRoute = async () => {
+        try {
+          const startLng = userLoc[1];
+          const startLat = userLoc[0];
+          const endLng = Number(detailPlace.longitude);
+          const endLat = Number(detailPlace.latitude);
+
+          const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${startLng},${startLat};${endLng},${endLat}?overview=full&geometries=geojson`);
+          const data = await res.json();
+
+          if (data.routes && data.routes.length > 0) {
+            // OSRM GeoJSON coords are [lng, lat], Leaflet wants [lat, lng]
+            const coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+            setRoutePath(coords);
+          } else {
+            // Fallback to straight line
+            setRoutePath([userLoc, [endLat, endLng]]);
+          }
+        } catch (error) {
+          console.error("OSRM Route Error:", error);
+          setRoutePath([userLoc, [Number(detailPlace.latitude), Number(detailPlace.longitude)]]);
+        }
+      };
+
+      fetchRoute();
+    } else {
+      setRoutePath(null);
+    }
+  }, [userLoc, detailPlace]);
 
   const visiblePlaces = filterCat
     ? places.filter((p) => p.category?.category_id === filterCat)
     : places;
 
-  const handlePinClick = useCallback(
-    (place) => {
-      setActiveId(place.place_id);
-      setDetailPlace(place);
-      setDetailOpen(true);
-    },
-    []
+  // Filter places that have valid coordinates
+  const mappablePlaces = visiblePlaces.filter(
+    (p) => p.latitude && p.longitude && p.latitude !== 0 && p.longitude !== 0
   );
 
-  const handleListClick = useCallback(
-    (place) => {
-      setActiveId(place.place_id);
-      setDetailPlace(place);
-      setDetailOpen(true);
-    },
-    []
-  );
+  const handlePinClick = useCallback((place) => {
+    setActiveId(place.place_id);
+    setDetailPlace(place);
+    setDetailOpen(true);
+  }, []);
+
+  const handleListClick = useCallback((place) => {
+    setActiveId(place.place_id);
+    setDetailPlace(place);
+    setDetailOpen(true);
+    if (place.latitude && place.longitude) {
+      setFlyTarget([Number(place.latitude), Number(place.longitude)]);
+    }
+  }, []);
 
   const closeDetail = useCallback(() => {
     setDetailOpen(false);
@@ -69,210 +211,106 @@ export default function MapView({ places = [], categories = [] }) {
     [router]
   );
 
+  // Compute center from places if available
+  const mapCenter =
+    mappablePlaces.length > 0
+      ? [
+        mappablePlaces.reduce((s, p) => s + Number(p.latitude), 0) / mappablePlaces.length,
+        mappablePlaces.reduce((s, p) => s + Number(p.longitude), 0) / mappablePlaces.length,
+      ]
+      : [CENTER.lat, CENTER.lng];
+
   return (
-    <div className="flex flex-col md:flex-row h-[800px] md:h-[720px] rounded-2xl overflow-hidden border border-gray-200 shadow-sm relative">
-      <style>{PULSE_STYLE}</style>
-
+    <div className="flex flex-col md:flex-row h-[650px] md:h-[720px] rounded-2xl overflow-hidden border border-gray-200 shadow-sm relative z-0 isolate bg-white">
       {/* ─── LEFT: Map ─── */}
-      <div className="relative w-full h-[60%] md:w-[55%] md:h-full bg-[#dbe8d0] overflow-auto flex-shrink-0 touch-pan-x touch-pan-y">
-        {/* Title card */}
-        <div className="absolute top-4 left-4 z-10 bg-white/88 backdrop-blur-md rounded-xl px-3.5 py-2.5 border border-black/10 shadow-sm">
-          <div className="font-display font-bold text-[#1b4332] text-sm leading-tight">
-            ตำบลบ้านหวาย
-          </div>
-          <div className="text-[#52796f] text-[10px] mt-0.5">
-            Ban Wai Sub-district Map
-          </div>
-        </div>
-
-        {/* SVG Map */}
-        <svg
-          viewBox="0 0 400 680"
-          className="w-full h-full"
-          style={{ display: "block", minWidth: "500px", minHeight: "850px" }}
-        >
-          <defs>
-            <radialGradient id="bwBgGrad" cx="50%" cy="45%" r="60%">
-              <stop offset="0%" stopColor="#d4e8c2" />
-              <stop offset="100%" stopColor="#b8d49a" />
-            </radialGradient>
-            <filter id="bwShadow">
-              <feDropShadow dx="0" dy="2" stdDeviation="3" floodOpacity="0.15" />
-            </filter>
-          </defs>
-
-          {/* Background */}
-          <rect width="400" height="680" fill="#dbe8d0" />
-
-          {/* Topo rings */}
-          <ellipse cx="200" cy="340" rx="190" ry="310" fill="none" stroke="#c5daa8" strokeWidth="1" opacity="0.5" />
-          <ellipse cx="200" cy="340" rx="155" ry="260" fill="none" stroke="#c5daa8" strokeWidth="1" opacity="0.4" />
-          <ellipse cx="200" cy="340" rx="118" ry="200" fill="none" stroke="#c5daa8" strokeWidth="1" opacity="0.3" />
-
-          {/* Sub-district boundary */}
-          <path
-            d="M200,60 C240,55 280,70 310,100 C340,130 355,165 360,200 C368,245 362,290 350,330 C338,370 318,405 295,435 C272,465 245,488 215,505 C198,514 180,518 162,515 C140,512 118,500 100,482 C75,458 56,425 45,388 C32,345 28,298 35,254 C42,210 58,168 82,134 C106,100 148,68 200,60 Z"
-            fill="url(#bwBgGrad)"
-            stroke="#7aad5e"
-            strokeWidth="2"
-            filter="url(#bwShadow)"
-          />
-
-          {/* Roads */}
-          <path d="M200,60 L200,515" stroke="#fff" strokeWidth="2.5" strokeDasharray="6,5" opacity="0.5" fill="none" />
-          <path d="M80,280 Q140,260 200,270 Q260,280 320,260" stroke="#fff" strokeWidth="2" strokeDasharray="5,4" opacity="0.4" fill="none" />
-          <path d="M100,380 Q160,365 210,370 Q265,375 310,355" stroke="#fff" strokeWidth="1.5" strokeDasharray="4,4" opacity="0.35" fill="none" />
-
-          {/* Water body */}
-          <ellipse cx="165" cy="420" rx="28" ry="18" fill="#90c9e8" opacity="0.7" stroke="#5ba8d4" strokeWidth="0.8" />
-          <text x="165" y="423" textAnchor="middle" fontSize="9" fill="#1a5e7a" fontFamily="Sarabun,sans-serif" fontWeight="500">
-            แหล่งน้ำ
-          </text>
-
-          {/* Green area */}
-          <ellipse cx="255" cy="185" rx="32" ry="22" fill="#8dc96a" opacity="0.45" stroke="#5a9a3c" strokeWidth="0.8" />
-          <text x="255" y="188" textAnchor="middle" fontSize="9" fill="#2d5a1b" fontFamily="Sarabun,sans-serif">
-            ป่าหวาย
-          </text>
-
-          {/* Pins */}
-          {visiblePlaces.map((place) => {
-            const px = place.map_x ?? 200;
-            const py = place.map_y ?? 300;
-            const color = getPinColor(place.category?.name);
-            const isActive = activeId === place.place_id;
-            return (
-              <g
+      <div className="relative w-full h-[45%] md:w-[60%] md:h-full bg-gray-100 flex-shrink-0 z-0">
+        {mapReady && (
+          <MapContainer
+            center={mapCenter}
+            zoom={DEFAULT_ZOOM}
+            style={{ width: "100%", height: "100%" }}
+            scrollWheelZoom={true}
+            zoomControl={true}
+          >
+            <TileLayer
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+            {flyTarget && <FlyToDynamic position={flyTarget} zoom={16} />}
+            {userLoc && (
+              <Marker position={userLoc} icon={createUserIcon()}>
+                <Popup>
+                  <div className="text-center font-medium font-display text-sm">ตำแหน่งของคุณ</div>
+                </Popup>
+              </Marker>
+            )}
+            {/* Draw route line from user to selected place */}
+            {routePath && (
+              <Polyline
+                positions={routePath}
+                pathOptions={{ color: '#3b82f6', weight: 5, opacity: 0.8 }}
+              />
+            )}
+            {mappablePlaces.map((place) => (
+              <Marker
                 key={place.place_id}
-                onClick={() => handlePinClick(place)}
-                onMouseEnter={() => setTooltip({ x: px, y: py, name: place.name })}
-                onMouseLeave={() => setTooltip(null)}
-                style={{ cursor: "pointer" }}
+                position={[Number(place.latitude), Number(place.longitude)]}
+                icon={createCategoryIcon(
+                  place.category?.name,
+                  activeId === place.place_id
+                )}
+                eventHandlers={{
+                  click: () => handlePinClick(place),
+                }}
               >
-                {/* Pulse ring when active */}
-                {isActive && (
-                  <circle
-                    cx={px}
-                    cy={py}
-                    r="12"
-                    fill={color}
-                    opacity="0.3"
-                    className="map-pulse"
-                  />
-                )}
-                {/* Outer ring */}
-                {isActive && (
-                  <circle
-                    cx={px}
-                    cy={py}
-                    r="18"
-                    fill="none"
-                    stroke={color}
-                    strokeWidth="1.5"
-                    opacity="0.4"
-                  />
-                )}
-                {/* Pin circle */}
-                <circle
-                  cx={px}
-                  cy={py}
-                  r={isActive ? 14 : 11}
-                  fill={color}
-                  opacity={isActive ? 1 : 0.85}
-                  stroke="white"
-                  strokeWidth={isActive ? 2.5 : 2}
-                  style={{ transition: "all 0.2s" }}
-                />
-                {/* Icon */}
-                {place.category?.icon ? (
-                  <text
-                    x={px}
-                    y={py + 5}
-                    textAnchor="middle"
-                    fontSize={isActive ? 16 : 13}
-                    fontFamily="Sarabun,sans-serif"
-                  >
-                    {place.category?.icon}
-                  </text>
-                ) : (
-                  <MapPin 
-                    x={px - (isActive ? 8 : 6.5)} 
-                    y={py - (isActive ? 8 : 6.5)} 
-                    width={isActive ? 16 : 13} 
-                    height={isActive ? 16 : 13} 
-                    color="white" 
-                  />
-                )}
-              </g>
-            );
-          })}
+                <Popup>
+                  <div className="text-center min-w-[160px] pb-1">
+                    {place.cover_image && (
+                      <div className="w-full h-24 mb-2 rounded-lg overflow-hidden">
+                        <img src={place.cover_image} alt={place.name} className="w-full h-full object-cover" />
+                      </div>
+                    )}
+                    <div className="font-bold text-sm mb-1">{place.name}</div>
+                    <div className="text-xs text-gray-500 mb-2">
+                      {!place.cover_image && place.category?.icon} {place.category?.name}
+                    </div>
+                    <button
+                      onClick={() => goToDetail(place.place_id)}
+                      className="bg-[#2d6a4f] text-white text-xs px-3 py-1.5 rounded-lg hover:bg-[#1b4332] transition-colors"
+                    >
+                      ดูรายละเอียด →
+                    </button>
+                  </div>
+                </Popup>
+              </Marker>
+            ))}
+          </MapContainer>
+        )}
 
-          {/* Tooltip */}
-          {tooltip && (
-            <g>
-              <rect
-                x={tooltip.x - 52}
-                y={tooltip.y - 42}
-                width="104"
-                height="24"
-                rx="6"
-                fill="rgba(27,67,50,0.92)"
-              />
-              <text
-                x={tooltip.x}
-                y={tooltip.y - 26}
-                textAnchor="middle"
-                fontSize="11"
-                fill="white"
-                fontFamily="Sarabun,sans-serif"
-              >
-                {tooltip.name}
-              </text>
-              <polygon
-                points={`${tooltip.x - 5},${tooltip.y - 18} ${tooltip.x + 5},${tooltip.y - 18} ${tooltip.x},${tooltip.y - 12}`}
-                fill="rgba(27,67,50,0.92)"
-              />
-            </g>
-          )}
-
-          {/* Compass */}
-          <g transform="translate(360,60)">
-            <circle cx="0" cy="0" r="18" fill="rgba(255,255,255,0.8)" stroke="#aaa" strokeWidth="0.5" />
-            <polygon points="0,-14 3,-4 -3,-4" fill="#e63946" />
-            <polygon points="0,14 3,4 -3,4" fill="#999" />
-            <polygon points="-14,0 -4,3 -4,-3" fill="#555" />
-            <polygon points="14,0 4,3 4,-3" fill="#555" />
-            <text x="0" y="-17" textAnchor="middle" fontSize="7" fill="#c00" fontFamily="sans-serif" fontWeight="700">
-              N
-            </text>
-          </g>
-
-          {/* Scale bar */}
-          <g transform="translate(20,640)">
-            <line x1="0" y1="0" x2="60" y2="0" stroke="#555" strokeWidth="1.5" />
-            <line x1="0" y1="-4" x2="0" y2="4" stroke="#555" strokeWidth="1.5" />
-            <line x1="60" y1="-4" x2="60" y2="4" stroke="#555" strokeWidth="1.5" />
-            <text x="30" y="-7" textAnchor="middle" fontSize="9" fill="#555" fontFamily="Sarabun,sans-serif">
-              500 ม.
-            </text>
-          </g>
-        </svg>
+        {/* GPS Button */}
+        <button
+          onClick={locateUser}
+          title="ตำแหน่งของฉัน"
+          className="absolute top-4 right-4 z-[1000] bg-white/95 backdrop-blur-md hover:bg-white text-[#1b4332] p-2.5 rounded-xl shadow-md border border-gray-100 transition-all flex items-center justify-center hover:scale-105"
+        >
+          {locating ? <Loader2 className="w-5 h-5 animate-spin text-[#2d6a4f]" /> : <Navigation className="w-5 h-5 text-[#2d6a4f]" />}
+        </button>
 
         {/* Legend */}
-        <div className="absolute bottom-3.5 right-3.5 bg-white/88 backdrop-blur-md rounded-xl px-3 py-2 border border-black/10 text-[10px] leading-relaxed">
+        <div className="absolute bottom-3.5 right-3.5 z-[1000] bg-white/90 backdrop-blur-md rounded-xl px-3 py-2 border border-black/10 text-[10px] leading-relaxed shadow-sm">
           {Object.entries(CATEGORY_COLORS).map(([name, color]) => (
             <div key={name} className="flex items-center gap-1.5 mb-0.5 last:mb-0">
-              <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: color }} />
+              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: color }} />
               <span className="text-gray-700">{name}</span>
             </div>
           ))}
         </div>
       </div>
 
-      {/* ─── RIGHT: List + Detail ─── */}
-      <div className="relative flex-1 bg-white flex flex-col overflow-hidden">
+      {/* ─── RIGHT: List ─── */}
+      <div className="relative w-full h-[55%] md:w-[40%] md:h-full bg-white flex flex-col overflow-hidden z-10 border-t md:border-t-0 md:border-l border-gray-200">
         {/* Header */}
-        <div className="px-5 pt-4 pb-3 border-b border-gray-100">
+        <div className="px-5 pt-4 pb-3 border-b border-gray-100 flex-shrink-0">
           <h2 className="font-display font-bold text-[#1b4332] text-base">สถานที่ท่องเที่ยว</h2>
           <p className="text-gray-400 text-xs mt-0.5">
             {visiblePlaces.length} สถานที่
@@ -281,14 +319,13 @@ export default function MapView({ places = [], categories = [] }) {
         </div>
 
         {/* Category filter */}
-        <div className="flex gap-1.5 px-3 py-2 flex-wrap border-b border-gray-100">
+        <div className="flex gap-1.5 px-4 py-2.5 flex-wrap border-b border-gray-100 bg-gray-50/50 flex-shrink-0">
           <button
             onClick={() => setFilterCat(null)}
-            className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
-              !filterCat
-                ? "bg-[#2d6a4f] text-white"
-                : "bg-gray-100 text-gray-500 hover:bg-gray-200"
-            }`}
+            className={`px-3 py-1 rounded-full text-xs font-medium transition-all border ${!filterCat
+              ? "bg-[#2d6a4f] text-white border-[#2d6a4f]"
+              : "bg-white text-gray-500 hover:bg-gray-50 border-gray-200"
+              }`}
           >
             ทั้งหมด
           </button>
@@ -298,11 +335,10 @@ export default function MapView({ places = [], categories = [] }) {
               onClick={() =>
                 setFilterCat(filterCat === cat.category_id ? null : cat.category_id)
               }
-              className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
-                filterCat === cat.category_id
-                  ? "bg-[#2d6a4f] text-white"
-                  : "bg-gray-100 text-gray-500 hover:bg-gray-200"
-              }`}
+              className={`px-3 py-1 rounded-full text-xs font-medium transition-all border ${filterCat === cat.category_id
+                ? "bg-[#2d6a4f] text-white border-[#2d6a4f]"
+                : "bg-white text-gray-500 hover:bg-gray-50 border-gray-200"
+                }`}
             >
               {cat.icon} {cat.name}
             </button>
@@ -310,7 +346,7 @@ export default function MapView({ places = [], categories = [] }) {
         </div>
 
         {/* Places list */}
-        <div className="flex-1 overflow-y-auto p-2">
+        <div className="flex-1 overflow-y-auto min-h-0 p-2">
           {visiblePlaces.length === 0 ? (
             <div className="text-center py-16 text-gray-400 text-sm">ไม่พบสถานที่</div>
           ) : (
@@ -321,109 +357,133 @@ export default function MapView({ places = [], categories = [] }) {
                 <div
                   key={place.place_id}
                   onClick={() => handleListClick(place)}
-                  className={`flex items-center gap-2.5 px-2.5 py-2.5 rounded-xl cursor-pointer transition-all mb-1 border ${
-                    isActive
-                      ? "bg-[#edf7f2] border-[#52796f]/40"
-                      : "border-transparent hover:bg-gray-50"
-                  }`}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-all mb-1.5 border ${isActive
+                    ? "bg-[#edf7f2] border-[#52796f]/40 shadow-sm"
+                    : "border-transparent hover:bg-gray-50 border-gray-100"
+                    }`}
                 >
                   <div
-                    className="w-9 h-9 rounded-xl flex items-center justify-center text-[#2d6a4f] flex-shrink-0"
-                    style={{ background: color + "22", color: color }}
+                    className="w-12 h-12 rounded-xl flex items-center justify-center text-[#2d6a4f] flex-shrink-0 overflow-hidden shadow-sm border border-black/5"
+                    style={{ background: color + "15", color: color }}
                   >
-                    {place.category?.icon}
+                    {place.cover_image ? (
+                      <img src={place.cover_image} alt={place.name} className="w-full h-full object-cover" />
+                    ) : (
+                      place.category?.icon || <ImageIcon className="w-5 h-5 opacity-50" />
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-gray-800 truncate">
+                    <div className="text-sm font-bold text-gray-800 truncate mb-0.5">
                       {place.name}
                     </div>
-                    <div className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
-                      {place.category?.name} · <Eye className="w-3 h-3 ml-1" /> {place.view_count}
+                    <div className="text-xs text-gray-500 flex items-center gap-1.5">
+                      <span className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full" style={{ background: color }}></div> {place.category?.name}</span>
+                      <span className="text-gray-300">|</span>
+                      <span className="flex items-center gap-1"><Eye className="w-3 h-3" /> {place.view_count}</span>
                     </div>
                   </div>
-                  <span className="text-gray-300 text-base">›</span>
+                  <span className="text-[#2d6a4f] text-base opacity-40">›</span>
                 </div>
               );
             })
           )}
         </div>
+      </div>
 
-        {/* ── Detail panel (slides in) ── */}
-        <div
-          className={`absolute inset-0 bg-white flex flex-col z-20 transition-transform duration-300 ease-out ${
-            detailOpen ? "translate-x-0" : "translate-x-full"
-          }`}
-        >
-          {detailPlace && (
-            <>
-              {/* Hero */}
+      {/* ── Detail panel (Mobile Bottom Sheet / Desktop Sidebar) ── */}
+      <div
+        className={`absolute left-0 right-0 top-12 bottom-0 md:left-auto md:w-[40%] md:top-0 h-auto md:h-full bg-white flex flex-col z-50 transition-transform duration-300 ease-out shadow-[0_-10px_40px_rgba(0,0,0,0.15)] md:shadow-2xl rounded-t-3xl md:rounded-none overflow-hidden ${detailOpen ? "translate-y-0 md:translate-y-0 md:translate-x-0" : "translate-y-full md:translate-y-0 md:translate-x-full"}`}
+      >
+        {detailPlace && (
+          <div className="flex-1 overflow-y-auto no-scrollbar min-h-0 relative flex flex-col bg-white">
+            {/* Drag Handle (Mobile only) */}
+            <div className="w-full h-8 flex justify-center items-center md:hidden bg-gradient-to-b from-black/50 to-transparent absolute top-0 left-0 z-50 rounded-t-3xl" onClick={closeDetail} style={{ background: detailPlace.cover_image ? undefined : 'rgba(255,255,255,0.7)' }}>
+              <div className="w-12 h-1.5 bg-gray-300 rounded-full mt-1"></div>
+            </div>
+
+            {/* Hero */}
+            <div
+              className="h-48 min-h-[192px] flex items-center justify-center relative flex-shrink-0 overflow-hidden"
+              style={{
+                background: getPinColor(detailPlace.category?.name) + "25",
+              }}
+            >
+              {detailPlace.cover_image && (
+                <img src={detailPlace.cover_image} alt={detailPlace.name} className="absolute inset-0 w-full h-full object-cover" />
+              )}
+              {/* Dark gradient overlay if image exists so back button is readable */}
+              {detailPlace.cover_image && <div className="absolute inset-0 bg-gradient-to-b from-black/40 to-transparent" />}
+
+              <button
+                onClick={closeDetail}
+                className="absolute top-4 left-4 bg-white/95 backdrop-blur-sm border-none rounded-xl px-3 py-2 text-xs text-[#1b4332] font-bold cursor-pointer flex items-center gap-1.5 hover:bg-white transition-colors z-10 shadow-sm"
+              >
+                ← กลับ
+              </button>
+              {!detailPlace.cover_image && (
+                <span className="text-[#2d6a4f] flex items-center justify-center w-24 h-24 z-10 text-6xl drop-shadow-sm">
+                  {detailPlace?.category?.icon || <ImageIcon className="w-16 h-16 opacity-50" />}
+                </span>
+              )}
+            </div>
+
+            {/* Content Margin / Overlap */}
+            <div className="flex-1 bg-white -mt-6 rounded-t-3xl relative z-20 px-5 pt-7 pb-8 flex flex-col min-h-0">
               <div
-                className="h-44 flex items-center justify-center relative flex-shrink-0"
+                className="inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1 rounded-full mb-3 self-start"
                 style={{
-                  background: getPinColor(detailPlace.category?.name) + "25",
+                  background: getPinColor(detailPlace.category?.name) + "15",
+                  color: getPinColor(detailPlace.category?.name),
+                  border: `1px solid ${getPinColor(detailPlace.category?.name)}30`
                 }}
               >
-                <button
-                  onClick={closeDetail}
-                  className="absolute top-3 left-3 bg-white/85 border-none rounded-lg px-2.5 py-1.5 text-xs text-[#1b4332] font-medium cursor-pointer flex items-center gap-1 hover:bg-white transition-colors"
-                >
-                  ← กลับ
-                </button>
-                <span className="text-[#2d6a4f] flex items-center justify-center w-24 h-24">{detailPlace?.category?.icon || <ImageIcon className="w-16 h-16" />}</span>
+                {detailPlace.category?.icon} {detailPlace.category?.name}
               </div>
 
-              {/* Content */}
-              <div className="flex-1 overflow-y-auto p-4">
-                <div
-                  className="inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-1 rounded-full mb-2"
-                  style={{
-                    background: getPinColor(detailPlace.category?.name) + "20",
-                    color: getPinColor(detailPlace.category?.name),
-                  }}
-                >
-                  {detailPlace.category?.icon} {detailPlace.category?.name}
-                </div>
-                <h3 className="font-display font-bold text-xl text-[#1b4332] mb-2 leading-tight">
-                  {detailPlace.name}
-                </h3>
-                {detailPlace.description && (
-                  <p className="text-gray-500 text-xs leading-relaxed mb-3">
-                    {detailPlace.description.slice(0, 120)}
-                    {detailPlace.description.length > 120 ? "..." : ""}
-                  </p>
-                )}
+              <h3 className="font-display font-bold text-2xl text-[#1b4332] mb-3 leading-tight pr-2">
+                {detailPlace.name}
+              </h3>
 
-                {/* Meta grid */}
-                <div className="grid grid-cols-2 gap-2 mb-3">
-                  {[
-                    { label: "เวลาทำการ", value: detailPlace.open_hours, icon: <Clock className="w-3 h-3" /> },
-                    { label: "โทรศัพท์", value: detailPlace.phone, icon: <Phone className="w-3 h-3" /> },
-                    { label: "ผู้เข้าชม", value: `${detailPlace.view_count} ครั้ง`, icon: <Eye className="w-3 h-3" /> },
-                    { label: "พิกัด", value: detailPlace.address ? detailPlace.address.slice(0, 20) : "-", icon: <MapPin className="w-3 h-3" /> },
-                  ].map((item) => (
-                    <div
-                      key={item.label}
-                      className="bg-gray-50 rounded-xl p-2.5"
-                    >
-                      <div className="text-[10px] text-gray-400 mb-1 flex gap-1 items-center">{item.icon} {item.label}</div>
-                      <div className="text-xs text-gray-700 font-medium leading-snug">
-                        {item.value || "-"}
-                      </div>
+              {detailPlace.description && (
+                <p className="text-gray-600 text-sm leading-relaxed mb-5">
+                  {detailPlace.description.slice(0, 150)}
+                  {detailPlace.description.length > 150 ? "..." : ""}
+                </p>
+              )}
+
+              {/* Meta grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+                {[
+                  { label: "เวลาทำการ", value: detailPlace.open_hours, icon: <Clock className="w-3.5 h-3.5" /> },
+                  { label: "โทรศัพท์", value: detailPlace.phone, icon: <Phone className="w-3.5 h-3.5" /> },
+                  { label: "ผู้เข้าชม", value: `${detailPlace.view_count} ครั้ง`, icon: <Eye className="w-3.5 h-3.5" /> },
+                  { label: "พิกัด", value: detailPlace.address ? detailPlace.address.slice(0, 20) : "เปิด Google Maps", icon: <MapPin className="w-3.5 h-3.5" /> },
+                ].filter(i => i.value).map((item, idx) => (
+                  <div key={idx} className="flex items-center gap-2.5 bg-gray-50/80 px-3 py-2.5 rounded-xl border border-gray-100">
+                    <span className="text-[#2d6a4f] bg-white p-1 rounded-md shadow-sm">{item.icon}</span>
+                    <div>
+                      <div className="text-[10px] text-gray-400 font-medium mb-0.5">{item.label}</div>
+                      <div className="text-xs text-gray-700 font-semibold truncate max-w-[120px]">{item.value}</div>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
+              </div>
 
+              {/* Action */}
+              <div className="mt-auto pt-4 border-t border-gray-100">
                 <button
                   onClick={() => goToDetail(detailPlace.place_id)}
-                  className="w-full bg-[#2d6a4f] text-white rounded-xl py-3 text-sm font-semibold hover:bg-[#1b4332] transition-colors flex items-center justify-center gap-2"
+                  className="w-full bg-[#2d6a4f] text-white font-bold py-3.5 rounded-xl hover:bg-[#1b4332] transition-colors shadow-md shadow-[#2d6a4f]/20 flex items-center justify-center gap-2"
                 >
-                  ดูข้อมูลเพิ่มเติม <span>→</span>
+                  <MapPin className="w-4 h-4" />
+                  ดูข้อมูลแบบเต็มหน้าจอ
                 </button>
               </div>
-            </>
-          )}
-        </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 }
+```

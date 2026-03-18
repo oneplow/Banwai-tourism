@@ -25,8 +25,6 @@ export async function GET(request, { params }) {
       ...place,
       latitude: place.latitude ? Number(place.latitude) : null,
       longitude: place.longitude ? Number(place.longitude) : null,
-      map_x: place.map_x ? Number(place.map_x) : null,
-      map_y: place.map_y ? Number(place.map_y) : null,
     });
   } catch {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -50,8 +48,6 @@ export async function PUT(request, { params }) {
         phone: body.phone,
         open_hours: body.open_hours,
         cover_image: body.cover_image,
-        map_x: body.map_x ?? null,
-        map_y: body.map_y ?? null,
         is_active: body.is_active ?? true,
         images: {
           deleteMany: {},
@@ -68,8 +64,6 @@ export async function PUT(request, { params }) {
       ...place,
       latitude: place.latitude ? Number(place.latitude) : null,
       longitude: place.longitude ? Number(place.longitude) : null,
-      map_x: place.map_x ? Number(place.map_x) : null,
-      map_y: place.map_y ? Number(place.map_y) : null,
     });
   } catch (e) {
     console.error(e);

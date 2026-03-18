@@ -47,7 +47,7 @@ export default async function AnnouncementsPage() {
                   <span className="bg-[#2d6a4f]/10 text-[#2d6a4f] px-2.5 py-1 rounded-full font-medium flex items-center gap-1">
                     <Megaphone className="w-3 h-3" /> ประกาศ
                   </span>
-                  <span>
+                  <span suppressHydrationWarning>
                     {new Date(ann.created_at).toLocaleDateString("th-TH", {
                       year: "numeric",
                       month: "long",

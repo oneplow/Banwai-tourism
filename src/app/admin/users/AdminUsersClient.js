@@ -181,7 +181,7 @@ export default function AdminUsersClient({ users: initialUsers, places }) {
 
       {/* Add/Edit Modal */}
       {modal && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4" onClick={(e) => e.target === e.currentTarget && setModal(null)}>
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
             <h3 className="font-display font-bold text-lg text-gray-800 mb-5">
               {modal === "add" ? "เพิ่มผู้ใช้ใหม่" : `แก้ไข: ${modal.username}`}
@@ -222,7 +222,7 @@ export default function AdminUsersClient({ users: initialUsers, places }) {
 
       {/* Permissions Modal */}
       {permModal && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4" onClick={(e) => e.target === e.currentTarget && setPermModal(null)}>
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
             <h3 className="font-display font-bold text-lg text-gray-800 mb-1">
               กำหนดสิทธิ์: {permModal.username}

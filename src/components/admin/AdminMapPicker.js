@@ -1,109 +1,246 @@
 "use client";
-import { MapPin } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import dynamic from "next/dynamic";
+import { Search, Loader2, X } from "lucide-react";
 
-export default function AdminMapPicker({ x, y, onChange }) {
-  const handleMapClick = (e) => {
-    const svg = e.currentTarget;
-    const point = svg.createSVGPoint();
-    point.x = e.clientX;
-    point.y = e.clientY;
-    const cursorPoint = point.matrixTransform(svg.getScreenCTM().inverse());
-    
-    onChange({
-      x: Math.round(cursorPoint.x),
-      y: Math.round(cursorPoint.y),
-    });
+// Dynamically import Leaflet components (SSR incompatible)
+const MapContainer = dynamic(
+  () => import("react-leaflet").then((mod) => mod.MapContainer),
+  { ssr: false }
+);
+const TileLayer = dynamic(
+  () => import("react-leaflet").then((mod) => mod.TileLayer),
+  { ssr: false }
+);
+const Marker = dynamic(
+  () => import("react-leaflet").then((mod) => mod.Marker),
+  { ssr: false }
+);
+
+// บ้านหวาย หล่มสัก เพชรบูรณ์
+const CENTER = [16.7599, 101.2921];
+const DEFAULT_ZOOM = 14;
+
+function createPinIcon() {
+  if (typeof window === "undefined") return null;
+  const L = require("leaflet");
+  return L.divIcon({
+    className: "admin-map-pin",
+    html: `<div style="
+      width: 36px; height: 36px;
+      background: #e63946;
+      border: 3px solid white;
+      border-radius: 50%;
+      box-shadow: 0 3px 10px rgba(0,0,0,0.35);
+      display: flex; align-items: center; justify-content: center;
+    "><svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><path d='M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z'/><circle cx='12' cy='10' r='3'/></svg></div>`,
+    iconSize: [36, 36],
+    iconAnchor: [18, 18],
+  });
+}
+
+// Click handler component (needs to be a child of MapContainer)
+function ClickHandler({ onClick }) {
+  if (typeof window === "undefined") return null;
+  const { useMapEvents: useMapEventsHook } = require("react-leaflet");
+  useMapEventsHook({
+    click(e) {
+      onClick({ lat: e.latlng.lat, lng: e.latlng.lng });
+    },
+  });
+  return null;
+}
+
+const ClickHandlerDynamic = dynamic(
+  () => Promise.resolve(ClickHandler),
+  { ssr: false }
+);
+
+// FlyTo component — moves the map to a new position
+function FlyToPosition({ position, zoom }) {
+  if (typeof window === "undefined") return null;
+  const { useMap } = require("react-leaflet");
+  const map = useMap();
+  useEffect(() => {
+    if (position) {
+      map.flyTo(position, zoom || 17, { duration: 1.5 });
+    }
+  }, [position, zoom, map]);
+  return null;
+}
+
+const FlyToDynamic = dynamic(
+  () => Promise.resolve(FlyToPosition),
+  { ssr: false }
+);
+
+export default function AdminMapPicker({ lat, lng, onChange }) {
+  const [mapReady, setMapReady] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [showResults, setShowResults] = useState(false);
+  const [flyTarget, setFlyTarget] = useState(null);
+  const searchTimeout = useRef(null);
+  const resultsRef = useRef(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+      if (!document.querySelector('link[href*="leaflet.css"]')) {
+        document.head.appendChild(link);
+      }
+      setMapReady(true);
+    }
+  }, []);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (resultsRef.current && !resultsRef.current.contains(e.target)) {
+        setShowResults(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Search using Nominatim API (debounced)
+  const handleSearchChange = (value) => {
+    setSearchQuery(value);
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+
+    if (value.trim().length < 2) {
+      setSearchResults([]);
+      setShowResults(false);
+      return;
+    }
+
+    setSearching(true);
+    searchTimeout.current = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(value)}&limit=5&countrycodes=th&accept-language=th`,
+          { headers: { "User-Agent": "BanwaiTourism/1.0" } }
+        );
+        const data = await res.json();
+        setSearchResults(data);
+        setShowResults(data.length > 0);
+      } catch {
+        setSearchResults([]);
+      } finally {
+        setSearching(false);
+      }
+    }, 500);
   };
 
+  // Select a search result
+  const selectResult = (result) => {
+    const newLat = parseFloat(result.lat);
+    const newLng = parseFloat(result.lon);
+    onChange({ lat: newLat, lng: newLng });
+    setFlyTarget([newLat, newLng]);
+    setSearchQuery(result.display_name.split(",")[0]);
+    setShowResults(false);
+    setSearchResults([]);
+  };
+
+  const clearSearch = () => {
+    setSearchQuery("");
+    setSearchResults([]);
+    setShowResults(false);
+  };
+
+  const hasPosition = lat && lng && lat !== 0 && lng !== 0;
+  const center = hasPosition ? [Number(lat), Number(lng)] : CENTER;
+
   return (
-    <div className="w-full bg-[#dbe8d0] rounded-xl overflow-hidden border border-gray-200 shadow-sm relative" style={{ height: "400px" }}>
-      <div className="absolute top-2 left-2 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-lg text-xs font-medium text-[#1b4332] shadow-sm z-10 pointer-events-none">
-        คลิกบนแผนที่เพื่อปักหมุดตรงนี้
-      </div>
-      <div className="absolute bottom-2 right-2 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-lg text-xs font-medium text-gray-500 shadow-sm z-10 pointer-events-none">
-        พิกัดบนจอ: X: {x || "-"}, Y: {y || "-"}
-      </div>
-
-      <div className="w-full h-full overflow-auto touch-pan-x touch-pan-y cursor-crosshair">
-        <svg
-          viewBox="0 0 400 680"
-          className="w-full h-full"
-          style={{ display: "block", minWidth: "350px", minHeight: "600px" }}
-          onClick={handleMapClick}
-        >
-          <defs>
-            <radialGradient id="bwBgGradPicker" cx="50%" cy="45%" r="60%">
-              <stop offset="0%" stopColor="#d4e8c2" />
-              <stop offset="100%" stopColor="#b8d49a" />
-            </radialGradient>
-            <filter id="bwShadowPicker">
-              <feDropShadow dx="0" dy="2" stdDeviation="3" floodOpacity="0.15" />
-            </filter>
-          </defs>
-
-          {/* Background */}
-          <rect width="400" height="680" fill="#dbe8d0" />
-
-          {/* Topo rings */}
-          <ellipse cx="200" cy="340" rx="190" ry="310" fill="none" stroke="#c5daa8" strokeWidth="1" opacity="0.5" />
-          <ellipse cx="200" cy="340" rx="155" ry="260" fill="none" stroke="#c5daa8" strokeWidth="1" opacity="0.4" />
-          <ellipse cx="200" cy="340" rx="118" ry="200" fill="none" stroke="#c5daa8" strokeWidth="1" opacity="0.3" />
-
-          {/* Sub-district boundary */}
-          <path
-            d="M200,60 C240,55 280,70 310,100 C340,130 355,165 360,200 C368,245 362,290 350,330 C338,370 318,405 295,435 C272,465 245,488 215,505 C198,514 180,518 162,515 C140,512 118,500 100,482 C75,458 56,425 45,388 C32,345 28,298 35,254 C42,210 58,168 82,134 C106,100 148,68 200,60 Z"
-            fill="url(#bwBgGradPicker)"
-            stroke="#7aad5e"
-            strokeWidth="2"
-            filter="url(#bwShadowPicker)"
+    <div
+      className="w-full bg-gray-100 rounded-xl overflow-hidden border border-gray-200 shadow-sm relative"
+      style={{ height: "450px" }}
+    >
+      {/* Search Box */}
+      <div className="absolute top-3 left-14 right-3 z-[1000]" ref={resultsRef}>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            onFocus={() => searchResults.length > 0 && setShowResults(true)}
+            placeholder="ค้นหาสถานที่... เช่น วัดบ้านหวาย, หล่มสัก"
+            className="w-full bg-white/95 backdrop-blur-md border border-gray-200 rounded-xl pl-9 pr-16 py-2.5 text-sm shadow-lg focus:outline-none focus:ring-2 focus:ring-[#2d6a4f]/40 focus:border-[#2d6a4f] placeholder:text-gray-400"
           />
+          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
+            {searching && <Loader2 className="w-4 h-4 text-gray-400 animate-spin" />}
+            {searchQuery && !searching && (
+              <button onClick={clearSearch} className="p-1 hover:bg-gray-100 rounded-lg transition-colors">
+                <X className="w-4 h-4 text-gray-400" />
+              </button>
+            )}
+          </div>
+        </div>
 
-          {/* Roads */}
-          <path d="M200,60 L200,515" stroke="#fff" strokeWidth="2.5" strokeDasharray="6,5" opacity="0.5" fill="none" />
-          <path d="M80,280 Q140,260 200,270 Q260,280 320,260" stroke="#fff" strokeWidth="2" strokeDasharray="5,4" opacity="0.4" fill="none" />
-          <path d="M100,380 Q160,365 210,370 Q265,375 310,355" stroke="#fff" strokeWidth="1.5" strokeDasharray="4,4" opacity="0.35" fill="none" />
-
-          {/* Water body */}
-          <ellipse cx="165" cy="420" rx="28" ry="18" fill="#90c9e8" opacity="0.7" stroke="#5ba8d4" strokeWidth="0.8" />
-          <text x="165" y="423" textAnchor="middle" fontSize="9" fill="#1a5e7a" fontFamily="Sarabun,sans-serif" fontWeight="500">
-            แหล่งน้ำ
-          </text>
-
-          {/* Green area */}
-          <ellipse cx="255" cy="185" rx="32" ry="22" fill="#8dc96a" opacity="0.45" stroke="#5a9a3c" strokeWidth="0.8" />
-          <text x="255" y="188" textAnchor="middle" fontSize="9" fill="#2d5a1b" fontFamily="Sarabun,sans-serif">
-            ป่าหวาย
-          </text>
-
-          {/* Active Pin */}
-          {x && y && (
-            <g>
-              <circle
-                cx={x}
-                cy={y}
-                r="18"
-                fill="none"
-                stroke="#e63946"
-                strokeWidth="1.5"
-                opacity="0.5"
-                className="animate-pulse"
-              />
-              <circle cx={x} cy={y} r="12" fill="#e63946" stroke="white" strokeWidth="2" />
-              <MapPin x={x - 7} y={y - 7} width={14} height={14} color="white" />
-            </g>
-          )}
-
-          {/* Scale bar (bottom right in svg space) */}
-          <g transform="translate(320,640)">
-            <line x1="0" y1="0" x2="60" y2="0" stroke="#555" strokeWidth="1.5" />
-            <line x1="0" y1="-4" x2="0" y2="4" stroke="#555" strokeWidth="1.5" />
-            <line x1="60" y1="-4" x2="60" y2="4" stroke="#555" strokeWidth="1.5" />
-            <text x="30" y="-7" textAnchor="middle" fontSize="9" fill="#555" fontFamily="Sarabun,sans-serif">
-              500 ม.
-            </text>
-          </g>
-        </svg>
+        {/* Search Results Dropdown */}
+        {showResults && searchResults.length > 0 && (
+          <div className="mt-1.5 bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden max-h-[200px] overflow-y-auto">
+            {searchResults.map((result, idx) => (
+              <button
+                key={idx}
+                onClick={() => selectResult(result)}
+                className="w-full text-left px-4 py-3 hover:bg-[#edf7f2] transition-colors border-b border-gray-50 last:border-0 flex items-start gap-2.5"
+              >
+                <span className="text-[#2d6a4f] mt-0.5 flex-shrink-0">📍</span>
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-gray-800 truncate">
+                    {result.display_name.split(",")[0]}
+                  </div>
+                  <div className="text-[11px] text-gray-400 truncate mt-0.5">
+                    {result.display_name.split(",").slice(1, 4).join(",")}
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
+
+      {/* Coordinate display */}
+      <div className="absolute bottom-2 right-2 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-lg text-xs font-medium text-gray-500 shadow-sm z-[1000] pointer-events-none">
+        พิกัด: {lat ? Number(lat).toFixed(6) : "-"}, {lng ? Number(lng).toFixed(6) : "-"}
+      </div>
+
+      {/* Hint */}
+      <div className="absolute bottom-2 left-2 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-lg text-xs font-medium text-[#1b4332] shadow-sm z-[1000] pointer-events-none">
+        คลิกแผนที่เพื่อปักหมุด
+      </div>
+
+      {mapReady && (
+        <MapContainer
+          center={center}
+          zoom={hasPosition ? 16 : DEFAULT_ZOOM}
+          style={{ width: "100%", height: "100%", cursor: "crosshair" }}
+          scrollWheelZoom={true}
+        >
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+          <ClickHandlerDynamic onClick={(coords) => {
+            onChange(coords);
+            setFlyTarget(null); // reset fly target after manual click
+          }} />
+          {flyTarget && <FlyToDynamic position={flyTarget} zoom={17} />}
+          {hasPosition && (
+            <Marker
+              position={[Number(lat), Number(lng)]}
+              icon={createPinIcon()}
+            />
+          )}
+        </MapContainer>
+      )}
     </div>
   );
 }

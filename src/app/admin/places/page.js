@@ -8,7 +8,7 @@ import ConfirmModal from "@/components/admin/ConfirmModal";
 const EMPTY_FORM = {
   name: "", category_id: "", description: "", history: "",
   latitude: "", longitude: "", address: "", phone: "",
-  open_hours: "", cover_image: "", map_x: "", map_y: "", is_active: true,
+  open_hours: "", cover_image: "", is_active: true,
   images: [],
 };
 
@@ -53,7 +53,6 @@ export default function AdminPlacesPage() {
       latitude: place.latitude || "", longitude: place.longitude || "",
       address: place.address || "", phone: place.phone || "",
       open_hours: place.open_hours || "", cover_image: place.cover_image || "",
-      map_x: place.map_x || "", map_y: place.map_y || "",
       is_active: place.is_active ?? true,
       images: place.images?.map(img => ({ image_url: img.image_url, caption: img.caption || "" })) || [],
     });
@@ -84,8 +83,6 @@ export default function AdminPlacesPage() {
       category_id: parseInt(form.category_id),
       latitude: parseFloat(form.latitude) || 0,
       longitude: parseFloat(form.longitude) || 0,
-      map_x: parseFloat(form.map_x) || null,
-      map_y: parseFloat(form.map_y) || null,
     };
     const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const data = await res.json();
@@ -185,9 +182,8 @@ export default function AdminPlacesPage() {
                 </td>
                 <td className="px-4 py-3 text-center">
                   <button onClick={() => toggleActive(place)}
-                    className={`text-xs px-2.5 py-0.5 rounded-full font-medium transition-colors ${
-                      place.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-400"
-                    }`}>
+                    className={`text-xs px-2.5 py-0.5 rounded-full font-medium transition-colors ${place.is_active ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-400"
+                      }`}>
                     {place.is_active ? "แสดง" : "ซ่อน"}
                   </button>
                 </td>
@@ -222,7 +218,7 @@ export default function AdminPlacesPage() {
 
       {/* Add/Edit Modal */}
       {modal && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4 py-8">
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4 py-8" onClick={(e) => e.target === e.currentTarget && setModal(null)}>
           <div className="bg-white rounded-2xl p-6 w-full max-w-2xl shadow-xl max-h-[90vh] overflow-y-auto">
             <h3 className="font-display font-bold text-xl text-gray-800 mb-5">
               {modal === "add" ? "เพิ่มสถานที่ใหม่" : `แก้ไข: ${modal.name}`}
@@ -301,24 +297,24 @@ export default function AdminPlacesPage() {
 
               <div className="col-span-2 border-t border-gray-100 pt-4 mt-2">
                 <label className="text-sm text-gray-600 mb-2 block font-medium">
-                  พิกัดบนแผนที่จำลอง (คลิกเพื่อเลือกตำแหน่ง)
+                  ตำแหน่งบนแผนที่ (คลิกเพื่อเลือกพิกัด)
                 </label>
                 <div className="flex gap-4 mb-3">
                   <div className="flex-1">
-                    <label className="text-xs text-gray-400 block mb-1">X (แนวนอน)</label>
-                    <input type="number" value={form.map_x} onChange={(e) => setForm({ ...form, map_x: e.target.value })}
+                    <label className="text-xs text-gray-400 block mb-1">Latitude</label>
+                    <input type="number" step="any" value={form.latitude} onChange={(e) => setForm({ ...form, latitude: e.target.value })}
                       className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#2d6a4f]" />
                   </div>
                   <div className="flex-1">
-                    <label className="text-xs text-gray-400 block mb-1">Y (แนวตั้ง)</label>
-                    <input type="number" value={form.map_y} onChange={(e) => setForm({ ...form, map_y: e.target.value })}
+                    <label className="text-xs text-gray-400 block mb-1">Longitude</label>
+                    <input type="number" step="any" value={form.longitude} onChange={(e) => setForm({ ...form, longitude: e.target.value })}
                       className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#2d6a4f]" />
                   </div>
                 </div>
-                <AdminMapPicker 
-                  x={form.map_x} 
-                  y={form.map_y} 
-                  onChange={(coords) => setForm({ ...form, map_x: coords.x, map_y: coords.y })}
+                <AdminMapPicker
+                  lat={form.latitude}
+                  lng={form.longitude}
+                  onChange={(coords) => setForm({ ...form, latitude: coords.lat, longitude: coords.lng })}
                 />
               </div>
 

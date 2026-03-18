@@ -156,7 +156,7 @@ export default function AdminReviewsPage() {
 
       {/* Reply Modal */}
       {replyModal && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4" onClick={(e) => e.target === e.currentTarget && setReplyModal(null)}>
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
             <h3 className="font-display font-bold text-lg text-gray-800 mb-1">ตอบกลับรีวิว</h3>
             <p className="text-sm text-gray-400 mb-4">จาก: {replyModal.guest_name}</p>
