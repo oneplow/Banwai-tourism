@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Search } from "lucide-react";
 import AdminMapPicker from "@/components/admin/AdminMapPicker";
+import ConfirmModal from "@/components/admin/ConfirmModal";
 
 const EMPTY_FORM = {
   name: "", category_id: "", description: "", history: "",
@@ -19,6 +20,10 @@ export default function AdminPlacesPage() {
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
   const [msg, setMsg] = useState(null);
+  const [user, setUser] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
+
+  const isAdmin = user?.role === "admin";
 
   const toast = (text, type = "success") => { setMsg({ text, type }); setTimeout(() => setMsg(null), 3000); };
 
@@ -26,7 +31,18 @@ export default function AdminPlacesPage() {
     Promise.all([
       fetch("/api/places?admin=true").then((r) => r.json()),
       fetch("/api/categories").then((r) => r.json()),
-    ]).then(([p, c]) => { setPlaces(p); setCategories(c); });
+      fetch("/api/auth/me").then((r) => r.json()),
+    ]).then(([p, c, me]) => {
+      setUser(me.user);
+      // Staff: filter places by assigned permissions
+      if (me.user?.role === "staff") {
+        const allowedIds = me.user.staff_permissions?.map((sp) => sp.place_id) || [];
+        setPlaces(p.filter((place) => allowedIds.includes(place.place_id)));
+      } else {
+        setPlaces(p);
+      }
+      setCategories(c);
+    });
   }, []);
 
   const openAdd = () => { setForm(EMPTY_FORM); setModal("add"); };
@@ -92,6 +108,18 @@ export default function AdminPlacesPage() {
     }
   };
 
+  const deletePlace = async () => {
+    if (!confirmDelete) return;
+    const res = await fetch(`/api/places/${confirmDelete}`, { method: "DELETE" });
+    if (res.ok) {
+      setPlaces(places.filter((p) => p.place_id !== confirmDelete));
+      toast("ลบสถานที่สำเร็จ");
+    } else {
+      toast("เกิดข้อผิดพลาดในการลบ", "error");
+    }
+    setConfirmDelete(null);
+  };
+
   const filtered = places.filter((p) => p.name?.toLowerCase().includes(search.toLowerCase()));
 
   const FIELDS = [
@@ -123,9 +151,11 @@ export default function AdminPlacesPage() {
           <input value={search} onChange={(e) => setSearch(e.target.value)}
             placeholder="ค้นหาชื่อสถานที่..."
             className="border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#2d6a4f] w-48" />
-          <button onClick={openAdd} className="bg-[#2d6a4f] text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-[#1b4332] transition-colors whitespace-nowrap">
-            + เพิ่มสถานที่
-          </button>
+          {isAdmin && (
+            <button onClick={openAdd} className="bg-[#2d6a4f] text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-[#1b4332] transition-colors whitespace-nowrap">
+              + เพิ่มสถานที่
+            </button>
+          )}
         </div>
       </div>
 
@@ -171,6 +201,12 @@ export default function AdminPlacesPage() {
                       className="text-xs px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors">
                       แก้ไข
                     </button>
+                    {isAdmin && (
+                      <button onClick={() => setConfirmDelete(place.place_id)}
+                        className="text-xs px-2.5 py-1 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors">
+                        ลบ
+                      </button>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -306,6 +342,15 @@ export default function AdminPlacesPage() {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={!!confirmDelete}
+        title="ยืนยันการลบสถานที่"
+        message="คุณแน่ใจหรือไม่ว่าต้องการลบสถานที่นี้? ข้อมูลรีวิว รูปภาพ และสถิติที่เกี่ยวข้องจะถูกลบทั้งหมด ไม่สามารถย้อนกลับได้"
+        onConfirm={deletePlace}
+        onCancel={() => setConfirmDelete(null)}
+        confirmText="ลบถาวร"
+      />
     </div>
   );
 }

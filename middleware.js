@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { verifyToken, getTokenFromRequest } from "@/lib/auth";
 
 const PROTECTED_PATHS = ["/admin", "/api/admin"];
-const ADMIN_ONLY_PATHS = ["/admin/users", "/admin/stats", "/api/admin/stats"];
+const ADMIN_ONLY_PATHS = ["/admin/users", "/api/admin/users"];
 
 export async function middleware(request) {
   const { pathname } = request.nextUrl;

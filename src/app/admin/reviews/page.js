@@ -18,17 +18,38 @@ export default function AdminReviewsPage() {
   const [replyText, setReplyText] = useState("");
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
+  const [user, setUser] = useState(null);
+  const [allowedPlaceIds, setAllowedPlaceIds] = useState(null);
 
   const toast = (text, type = "success") => { setMsg({ text, type }); setTimeout(() => setMsg(null), 3000); };
+
+  // Fetch user info on mount to get staff permissions
+  useEffect(() => {
+    fetch("/api/auth/me").then((r) => r.json()).then((d) => {
+      if (d.user) {
+        setUser(d.user);
+        if (d.user.role === "staff") {
+          setAllowedPlaceIds(d.user.staff_permissions?.map((sp) => sp.place_id) || []);
+        }
+      }
+    });
+  }, []);
 
   const fetchReviews = async (status) => {
     setLoading(true);
     const res = await fetch(`/api/reviews?status=${status}&all=true`);
-    setReviews(await res.json());
+    let data = await res.json();
+    // Staff: filter reviews to only assigned places
+    if (allowedPlaceIds !== null) {
+      data = data.filter((r) => allowedPlaceIds.includes(r.place_id));
+    }
+    setReviews(data);
     setLoading(false);
   };
 
-  useEffect(() => { fetchReviews(filter); }, [filter]);
+  useEffect(() => {
+    if (user !== null) fetchReviews(filter);
+  }, [filter, user]);
 
   const updateStatus = async (reviewId, status) => {
     const res = await fetch("/api/reviews", {
@@ -79,7 +100,7 @@ export default function AdminReviewsPage() {
 
       {loading ? (
         <div className="space-y-3">
-          {[1,2,3].map(i => <div key={i} className="h-24 bg-gray-100 rounded-2xl animate-pulse" />)}
+          {[1, 2, 3].map(i => <div key={i} className="h-24 bg-gray-100 rounded-2xl animate-pulse" />)}
         </div>
       ) : reviews.length === 0 ? (
         <div className="text-center py-20 text-gray-400"><div className="flex justify-center mb-3"><Mailbox className="w-10 h-10" /></div><p>ไม่มีรีวิว</p></div>

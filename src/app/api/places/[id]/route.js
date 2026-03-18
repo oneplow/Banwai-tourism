@@ -79,13 +79,30 @@ export async function PUT(request, { params }) {
 
 export async function DELETE(request, { params }) {
   const { id } = await params;
+  const placeId = parseInt(id);
   try {
-    await prisma.place.update({
-      where: { place_id: parseInt(id) },
-      data: { is_active: false },
-    });
+    // Hard delete with cascading cleanup of related data
+    await prisma.$transaction([
+      // Delete review replies (through reviews)
+      prisma.reviewReply.deleteMany({
+        where: { review: { place_id: placeId } },
+      }),
+      // Delete reviews
+      prisma.review.deleteMany({ where: { place_id: placeId } }),
+      // Delete images
+      prisma.placeImage.deleteMany({ where: { place_id: placeId } }),
+      // Delete staff permissions
+      prisma.staffPermission.deleteMany({ where: { place_id: placeId } }),
+      // Delete favorites
+      prisma.favorite.deleteMany({ where: { place_id: placeId } }),
+      // Delete view stats
+      prisma.viewStat.deleteMany({ where: { place_id: placeId } }),
+      // Delete the place itself
+      prisma.place.delete({ where: { place_id: placeId } }),
+    ]);
     return NextResponse.json({ success: true });
-  } catch {
+  } catch (e) {
+    console.error("Delete place error:", e);
     return NextResponse.json({ error: "Delete failed" }, { status: 400 });
   }
 }
