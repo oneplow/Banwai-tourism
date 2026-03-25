@@ -7,11 +7,11 @@ export async function GET(request) {
 
   try {
     // Summary counts
-    const [totalPlaces, totalReviews, pendingReviews, totalFavorites] =
+    const [totalPlaces, totalComments, pendingComments, totalFavorites] =
       await Promise.all([
         prisma.place.count({ where: { is_active: true } }),
-        prisma.review.count(),
-        prisma.review.count({ where: { status: "pending" } }),
+        prisma.comment.count(),
+        prisma.comment.count({ where: { status: "pending" } }),
         prisma.favorite.count(),
       ]);
 
@@ -105,8 +105,8 @@ export async function GET(request) {
       }
     }
 
-    // Reviews by rating
-    const ratingDist = await prisma.review.groupBy({
+    // Comments by rating
+    const ratingDist = await prisma.comment.groupBy({
       by: ["rating"],
       _count: { rating: true },
       where: { status: "approved" },
@@ -117,7 +117,7 @@ export async function GET(request) {
     }));
 
     return NextResponse.json({
-      summary: { totalPlaces, totalReviews, pendingReviews, totalFavorites, totalViews },
+      summary: { totalPlaces, totalComments, pendingComments, totalFavorites, totalViews },
       topPlaces,
       chartData,
       ratings,

@@ -6,9 +6,10 @@ import AdminMapPicker from "@/components/admin/AdminMapPicker";
 import ConfirmModal from "@/components/admin/ConfirmModal";
 
 const EMPTY_FORM = {
-  name: "", category_id: "", description: "", history: "",
-  latitude: "", longitude: "", address: "", phone: "",
-  open_hours: "", cover_image: "", is_active: true,
+  name: "", category_ids: [], primary_category_id: null, description: "", history: "",
+  latitude: "", longitude: "", map_url: "", address: "", phone: "",
+  open_hours: "", open_time: "08:00", close_time: "17:00", is_always_open: false,
+  cover_image: "", is_active: true,
   images: [],
 };
 
@@ -47,12 +48,34 @@ export default function AdminPlacesPage() {
 
   const openAdd = () => { setForm(EMPTY_FORM); setModal("add"); };
   const openEdit = (place) => {
+    const catEntries = place.categories || [];
+    const primaryEntry = catEntries.find((c) => c.is_primary) || catEntries[0];
+    let openTime = "08:00";
+    let closeTime = "17:00";
+    let isAlwaysOpen = false;
+
+    if (place.open_hours === "เปิดตลอดเวลา") {
+      isAlwaysOpen = true;
+    } else if (place.open_hours && place.open_hours.includes("-")) {
+      const parts = place.open_hours.split("-").map(s => s.trim());
+      if (parts.length === 2 && parts[0].includes(":") && parts[1].includes(":")) {
+        openTime = parts[0];
+        closeTime = parts[1];
+      }
+    }
+
     setForm({
-      name: place.name || "", category_id: place.category_id || "",
+      name: place.name || "",
+      category_ids: catEntries.map((c) => c.category_id || c.category?.category_id),
+      primary_category_id: primaryEntry?.category_id || primaryEntry?.category?.category_id || null,
       description: place.description || "", history: place.history || "",
       latitude: place.latitude || "", longitude: place.longitude || "",
-      address: place.address || "", phone: place.phone || "",
-      open_hours: place.open_hours || "", cover_image: place.cover_image || "",
+      map_url: place.map_url || "", address: place.address || "", phone: place.phone || "",
+      open_hours: place.open_hours || "",
+      open_time: openTime,
+      close_time: closeTime,
+      is_always_open: isAlwaysOpen,
+      cover_image: place.cover_image || "",
       is_active: place.is_active ?? true,
       images: place.images?.map(img => ({ image_url: img.image_url, caption: img.caption || "" })) || [],
     });
@@ -78,11 +101,16 @@ export default function AdminPlacesPage() {
     const isNew = modal === "add";
     const url = isNew ? "/api/places" : `/api/places/${modal.place_id}`;
     const method = isNew ? "POST" : "PUT";
+    const finalOpenHours = form.is_always_open ? "เปิดตลอดเวลา" : `${form.open_time} - ${form.close_time}`;
+
     const body = {
       ...form,
-      category_id: parseInt(form.category_id),
+      open_hours: finalOpenHours,
+      category_ids: form.category_ids.map(Number),
+      primary_category_id: Number(form.primary_category_id || form.category_ids[0]),
       latitude: parseFloat(form.latitude) || 0,
       longitude: parseFloat(form.longitude) || 0,
+      map_url: form.map_url || null,
     };
     const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const data = await res.json();
@@ -95,10 +123,18 @@ export default function AdminPlacesPage() {
 
   const toggleActive = async (place) => {
     const cleanImages = place.images?.map(img => ({ image_url: img.image_url, caption: img.caption || "" })) || [];
+    const catEntries = place.categories || [];
+    const primaryEntry = catEntries.find((c) => c.is_primary) || catEntries[0];
     const res = await fetch(`/api/places/${place.place_id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...place, is_active: !place.is_active, images: cleanImages }),
+      body: JSON.stringify({
+        ...place,
+        is_active: !place.is_active,
+        images: cleanImages,
+        category_ids: catEntries.map((c) => c.category_id || c.category?.category_id),
+        primary_category_id: primaryEntry?.category_id || primaryEntry?.category?.category_id,
+      }),
     });
     if (res.ok) {
       setPlaces(places.map((p) => p.place_id === place.place_id ? { ...p, is_active: !p.is_active } : p));
@@ -124,10 +160,6 @@ export default function AdminPlacesPage() {
     { key: "address", label: "ที่อยู่", type: "text", full: true },
     { key: "description", label: "รายละเอียด", type: "textarea", full: true },
     { key: "history", label: "ประวัติความเป็นมา", type: "textarea", full: true },
-    { key: "phone", label: "โทรศัพท์", type: "text" },
-    { key: "open_hours", label: "เวลาทำการ", type: "text" },
-    { key: "latitude", label: "Latitude", type: "number" },
-    { key: "longitude", label: "Longitude", type: "number" },
     { key: "cover_image", label: "รูปปก (path หรือ URL)", type: "text", full: true },
   ];
 
@@ -175,7 +207,19 @@ export default function AdminPlacesPage() {
                   <div className="text-xs text-gray-400 truncate max-w-xs">{place.address}</div>
                 </td>
                 <td className="px-4 py-3 text-gray-500">
-                  {place.category?.icon} {place.category?.name}
+                  <div className="flex flex-wrap gap-1">
+                    {(place.categories || []).map((pc) => {
+                      const cat = pc.category || pc;
+                      return (
+                        <span key={cat.category_id} className={`inline-flex items-center gap-0.5 text-[11px] px-1.5 py-0.5 rounded-full ${pc.is_primary ? 'bg-amber-50 text-amber-700 font-semibold' : 'bg-gray-100 text-gray-500'}`}>
+                          {pc.is_primary && '★ '}{cat.icon} {cat.name}
+                        </span>
+                      );
+                    })}
+                    {(!place.categories || place.categories.length === 0) && (
+                      <span className="text-xs text-gray-400">{place.category?.icon} {place.category?.name}</span>
+                    )}
+                  </div>
                 </td>
                 <td className="px-4 py-3 text-center text-gray-500 font-mono text-xs">
                   {place.view_count?.toLocaleString()}
@@ -226,14 +270,74 @@ export default function AdminPlacesPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Category */}
               <div className="col-span-2">
-                <label className="text-sm text-gray-600 mb-1.5 block font-medium">หมวดหมู่ *</label>
-                <select value={form.category_id} onChange={(e) => setForm({ ...form, category_id: e.target.value })}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#2d6a4f]">
-                  <option value="">-- เลือกหมวดหมู่ --</option>
-                  {categories.map((c) => (
-                    <option key={c.category_id} value={c.category_id}>{c.icon} {c.name}</option>
-                  ))}
-                </select>
+                <label className="text-sm text-gray-600 mb-2 block font-medium">หมวดหมู่ * <span className="text-xs text-gray-400 font-normal">(เลือกได้หลายประเภท, ★ = ประเภทหลักกำหนดสีหมุด)</span></label>
+                <div className="flex flex-wrap gap-2">
+                  {categories.map((c) => {
+                    const isSelected = form.category_ids.includes(c.category_id);
+                    const isPrimary = form.primary_category_id === c.category_id;
+                    return (
+                      <button
+                        type="button"
+                        key={c.category_id}
+                        onClick={() => {
+                          if (isSelected) {
+                            const newIds = form.category_ids.filter((id) => id !== c.category_id);
+                            setForm({
+                              ...form,
+                              category_ids: newIds,
+                              primary_category_id: isPrimary ? (newIds[0] || null) : form.primary_category_id,
+                            });
+                          } else {
+                            const newIds = [...form.category_ids, c.category_id];
+                            setForm({
+                              ...form,
+                              category_ids: newIds,
+                              primary_category_id: form.primary_category_id || c.category_id,
+                            });
+                          }
+                        }}
+                        className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium border-2 transition-all ${
+                          isSelected
+                            ? isPrimary
+                              ? 'border-amber-400 bg-amber-50 text-amber-800 shadow-sm'
+                              : 'border-[#2d6a4f] bg-[#edf7f2] text-[#2d6a4f]'
+                            : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'
+                        }`}
+                      >
+                        <span className="w-3 h-3 rounded-full flex-shrink-0 border border-white shadow-sm" style={{ backgroundColor: c.pin_color || '#2d6a4f' }} />
+                        {c.icon} {c.name}
+                        {isPrimary && <span className="text-amber-500 text-xs">★</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+                {form.category_ids.length > 1 && (
+                  <div className="mt-2 bg-amber-50/50 rounded-lg px-3 py-2 border border-amber-200/50">
+                    <label className="text-xs text-amber-700 font-medium block mb-1.5">เลือกประเภทหลัก (กำหนดสีหมุด):</label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {form.category_ids.map((catId) => {
+                        const cat = categories.find((c) => c.category_id === catId);
+                        if (!cat) return null;
+                        return (
+                          <button
+                            type="button"
+                            key={catId}
+                            onClick={() => setForm({ ...form, primary_category_id: catId })}
+                            className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${
+                              form.primary_category_id === catId
+                                ? 'border-amber-400 bg-amber-100 text-amber-800'
+                                : 'border-gray-200 bg-white text-gray-500 hover:border-amber-300'
+                            }`}
+                          >
+                            <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: cat.pin_color || '#2d6a4f' }} />
+                            {cat.icon} {cat.name}
+                            {form.primary_category_id === catId && ' ★'}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {FIELDS.map((f) => (
@@ -248,6 +352,42 @@ export default function AdminPlacesPage() {
                   )}
                 </div>
               ))}
+
+              {/* Phone + Open Hours side by side */}
+              <div>
+                <label className="text-sm text-gray-600 mb-1.5 block font-medium">โทรศัพท์</label>
+                <input type="text" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#2d6a4f]" />
+              </div>
+              <div>
+                <label className="text-sm text-gray-600 mb-1.5 block font-medium">เวลาทำการ</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="time"
+                    value={form.open_time}
+                    onChange={(e) => setForm({ ...form, open_time: e.target.value })}
+                    disabled={form.is_always_open}
+                    className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#2d6a4f] disabled:bg-gray-100 disabled:text-gray-400"
+                  />
+                  <span className="text-gray-400 text-sm">ถึง</span>
+                  <input
+                    type="time"
+                    value={form.close_time}
+                    onChange={(e) => setForm({ ...form, close_time: e.target.value })}
+                    disabled={form.is_always_open}
+                    className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#2d6a4f] disabled:bg-gray-100 disabled:text-gray-400"
+                  />
+                </div>
+                <label className="flex items-center gap-2 text-xs text-gray-500 cursor-pointer w-fit mt-2">
+                  <input
+                    type="checkbox"
+                    checked={form.is_always_open}
+                    onChange={(e) => setForm({ ...form, is_always_open: e.target.checked })}
+                    className="rounded border-gray-300 text-[#2d6a4f] focus:ring-[#2d6a4f] w-3.5 h-3.5"
+                  />
+                  เปิดตลอดเวลา (24 ชม.)
+                </label>
+              </div>
 
               <div className="col-span-2 border-t border-gray-100 pt-4 mt-2">
                 <div className="flex items-center justify-between mb-3">
@@ -299,6 +439,42 @@ export default function AdminPlacesPage() {
                 <label className="text-sm text-gray-600 mb-2 block font-medium">
                   ตำแหน่งบนแผนที่ (คลิกเพื่อเลือกพิกัด)
                 </label>
+                <div className="mb-4 bg-[#edf7f2] p-3 rounded-xl border border-[#2d6a4f]/20">
+                  <label className="text-xs text-[#2d6a4f] font-bold block mb-1.5 flex items-center gap-1">
+                    📍 วางลิงก์ Google Maps เพื่อดึงพิกัดอัตโนมัติ
+                  </label>
+                  <input 
+                    type="text" 
+                    value={form.map_url !== undefined ? form.map_url : (form.map_url || "")}
+                    placeholder="เช่น https://www.google.com/maps/place/... หรือ https://maps.app.goo.gl/..."
+                    onChange={(e) => {
+                      const url = e.target.value;
+                      // 1. Try to match specific pin coordinates (!3d... !4d...)
+                      let match = url.match(/!3d(-?\d+\.\d+)&?(?:.*?)!4d(-?\d+\.\d+)/) || url.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+                      
+                      // 2. Try search pin (q=)
+                      if (!match) match = url.match(/q=(-?\d+\.\d+)%2C(-?\d+\.\d+)/) || url.match(/q=(-?\d+\.\d+),(-?\d+\.\d+)/);
+                      
+                      // 3. Try generic pin (ll=)
+                      if (!match) match = url.match(/ll=(-?\d+\.\d+)%2C(-?\d+\.\d+)/) || url.match(/ll=(-?\d+\.\d+),(-?\d+\.\d+)/);
+                      
+                      // 4. Fallback to map center view (@lat,lng)
+                      if (!match) match = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+                      
+                      if (match) {
+                        setForm({ ...form, map_url: url, latitude: match[1], longitude: match[2] });
+                        if (url !== form.map_url) toast("ดึงพิกัดจากลิงก์สำเร็จ!");
+                      } else {
+                        setForm({ ...form, map_url: url });
+                      }
+                    }}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2d6a4f]" 
+                  />
+                  <div className="text-[10px] text-gray-500 mt-1.5">
+                    * รองรับลิงก์ยาวแบบเต็มที่มีพิกัด (ถ้าเป็นลิงก์สั้น goo.gl ให้เปิดในเว็บก่อนแล้วก๊อปปี้ลิงก์ยาวแถบด้านบนมาวาง)
+                  </div>
+                </div>
+
                 <div className="flex gap-4 mb-3">
                   <div className="flex-1">
                     <label className="text-xs text-gray-400 block mb-1">Latitude</label>
@@ -330,7 +506,7 @@ export default function AdminPlacesPage() {
               <button onClick={() => setModal(null)} className="flex-1 border border-gray-200 rounded-xl py-2.5 text-sm text-gray-600 hover:bg-gray-50">
                 ยกเลิก
               </button>
-              <button onClick={save} disabled={saving || !form.name || !form.category_id}
+              <button onClick={save} disabled={saving || !form.name || form.category_ids.length === 0}
                 className="flex-1 bg-[#2d6a4f] text-white rounded-xl py-2.5 text-sm font-medium disabled:opacity-60 hover:bg-[#1b4332]">
                 {saving ? "กำลังบันทึก..." : "บันทึก"}
               </button>

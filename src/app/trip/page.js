@@ -1,10 +1,9 @@
 "use client";
-import { useState } from "react";
-import Link from "next/link";
-import Navbar from "@/components/Navbar";
 import { Bot, Sparkles, Map as MapIcon, Lightbulb, RefreshCw, Clock, Wallet, UserRound, CalendarDays, ChevronRight, ChevronLeft, Pencil, ArrowLeft } from "lucide-react";
-
-const INTERESTS = ["วัด / ศาสนสถาน", "แหล่งธรรมชาติ", "ตลาด / ของกิน", "วัฒนธรรม", "โฮมสเตย์", "ทั้งหมด"];
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import Image from "next/image";
+import Navbar from "@/components/Navbar";
 
 const STEPS = [
   { label: "กำหนดทริป", icon: CalendarDays },
@@ -25,6 +24,14 @@ export default function TripPlannerPage() {
   const [plan, setPlan] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [categories, setCategories] = useState([]);
+
+  useEffect(() => {
+    fetch("/api/categories")
+      .then((r) => r.json())
+      .then((data) => setCategories(data))
+      .catch(() => {});
+  }, []);
 
   const toggleInterest = (i) =>
     setForm((f) => ({
@@ -122,17 +129,16 @@ export default function TripPlannerPage() {
                 <label className="text-xs font-medium text-gray-500 mb-1.5 block flex items-center gap-1">
                   <CalendarDays className="w-3 h-3" /> จำนวนวัน
                 </label>
-                <select
+                <input
+                  type="number"
+                  min="1"
+                  max="7"
+                  step="1"
                   value={form.days}
-                  onChange={(e) => setForm({ ...form, days: e.target.value })}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#2d6a4f] focus:ring-1 focus:ring-[#2d6a4f]/20"
-                >
-                  {[1, 2, 3].map((d) => (
-                    <option key={d} value={d}>
-                      {d} วัน
-                    </option>
-                  ))}
-                </select>
+                  onChange={(e) => setForm({ ...form, days: Math.max(1, Math.min(7, Math.floor(Number(e.target.value) || 1))).toString() })}
+                  onKeyDown={(e) => { if (e.key === '.' || e.key === ',') e.preventDefault(); }}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#2d6a4f] focus:ring-1 focus:ring-[#2d6a4f]/20 h-[42px]"
+                />
               </div>
 
               {/* Start time */}
@@ -140,17 +146,12 @@ export default function TripPlannerPage() {
                 <label className="text-xs font-medium text-gray-500 mb-1.5 block flex items-center gap-1">
                   <Clock className="w-3 h-3" /> เวลาเริ่ม
                 </label>
-                <select
+                <input
+                  type="time"
                   value={form.startTime}
                   onChange={(e) => setForm({ ...form, startTime: e.target.value })}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#2d6a4f] focus:ring-1 focus:ring-[#2d6a4f]/20"
-                >
-                  {["06:00", "07:00", "08:00", "09:00", "10:00", "12:00"].map((t) => (
-                    <option key={t} value={t}>
-                      {t} น.
-                    </option>
-                  ))}
-                </select>
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#2d6a4f] focus:ring-1 focus:ring-[#2d6a4f]/20 h-[42px]"
+                />
               </div>
 
               {/* Budget */}
@@ -161,7 +162,7 @@ export default function TripPlannerPage() {
                 <select
                   value={form.budget}
                   onChange={(e) => setForm({ ...form, budget: e.target.value })}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#2d6a4f] focus:ring-1 focus:ring-[#2d6a4f]/20"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#2d6a4f] focus:ring-1 focus:ring-[#2d6a4f]/20 h-[42px]"
                 >
                   {["ฟรี", "ประหยัด", "ปานกลาง", "พรีเมียม"].map((b) => (
                     <option key={b} value={b}>
@@ -176,17 +177,16 @@ export default function TripPlannerPage() {
                 <label className="text-xs font-medium text-gray-500 mb-1.5 block flex items-center gap-1">
                   <UserRound className="w-3 h-3" /> จำนวนคน
                 </label>
-                <select
+                <input
+                  type="number"
+                  min="1"
+                  max="50"
+                  step="1"
                   value={form.travelers}
-                  onChange={(e) => setForm({ ...form, travelers: e.target.value })}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#2d6a4f] focus:ring-1 focus:ring-[#2d6a4f]/20"
-                >
-                  {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => (
-                    <option key={n} value={n}>
-                      {n} คน
-                    </option>
-                  ))}
-                </select>
+                  onChange={(e) => setForm({ ...form, travelers: Math.max(1, Math.min(50, Math.floor(Number(e.target.value) || 1))).toString() })}
+                  onKeyDown={(e) => { if (e.key === '.' || e.key === ',') e.preventDefault(); }}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#2d6a4f] focus:ring-1 focus:ring-[#2d6a4f]/20 h-[42px]"
+                />
               </div>
             </div>
 
@@ -222,19 +222,42 @@ export default function TripPlannerPage() {
             <p className="text-gray-500 text-sm">เลือกได้หลายอย่าง — AI จะจัดสถานที่ตามความสนใจของคุณ</p>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-              {INTERESTS.map((i) => (
+              {categories.map((c) => (
                 <button
-                  key={i}
-                  onClick={() => toggleInterest(i)}
-                  className={`px-4 py-3 rounded-xl text-sm font-medium transition-all border text-left ${
-                    form.interests.includes(i)
-                      ? "bg-[#2d6a4f] text-white border-[#2d6a4f] shadow-md"
+                  key={c.category_id}
+                  onClick={() => toggleInterest(c.name)}
+                  className={`px-4 py-3 rounded-xl text-sm font-medium transition-all border text-left flex items-center gap-2 ${
+                    form.interests.includes(c.name)
+                      ? "border-[#2d6a4f] text-white shadow-md"
                       : "bg-white text-gray-600 border-gray-200 hover:border-[#2d6a4f]/50 hover:bg-green-50/50"
                   }`}
+                  style={
+                    form.interests.includes(c.name)
+                      ? { backgroundColor: c.pin_color || '#2d6a4f', borderColor: c.pin_color || '#2d6a4f' }
+                      : {}
+                  }
                 >
-                  {i}
+                  <span className="text-base">{c.icon}</span>
+                  {c.name}
                 </button>
               ))}
+              <button
+                onClick={() => {
+                  const allSelected = categories.every(c => form.interests.includes(c.name));
+                  if (allSelected) {
+                    setForm(f => ({ ...f, interests: [] }));
+                  } else {
+                    setForm(f => ({ ...f, interests: categories.map(c => c.name) }));
+                  }
+                }}
+                className={`px-4 py-3 rounded-xl text-sm font-medium transition-all border text-left flex items-center gap-2 ${
+                  categories.length > 0 && categories.every(c => form.interests.includes(c.name))
+                    ? "bg-[#2d6a4f] text-white border-[#2d6a4f] shadow-md"
+                    : "bg-white text-gray-600 border-gray-200 hover:border-[#2d6a4f]/50 hover:bg-green-50/50"
+                }`}
+              >
+                🗺️ ทั้งหมด
+              </button>
             </div>
 
             <div className="flex gap-3">
@@ -333,6 +356,17 @@ export default function TripPlannerPage() {
         {/* ── Result ── */}
         {plan && (
           <div className="space-y-5 animate-fade-in">
+            {/* Mock notice */}
+            {plan._isMock && (
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl px-5 py-3.5 flex items-start gap-3">
+                <span className="text-amber-500 text-lg flex-shrink-0">⚠️</span>
+                <div className="text-sm">
+                  <p className="font-medium text-amber-800">นี่คือแผนตัวอย่าง (ข้อมูลจริง แต่ยังไม่ผ่าน AI)</p>
+                  <p className="text-amber-600 mt-0.5">โควต้า AI หมดชั่วคราว — ลองกด &quot;สร้างแผนใหม่&quot; อีกครั้งใน 1-2 นาที</p>
+                </div>
+              </div>
+            )}
+
             {/* Summary */}
             <div className="bg-gradient-to-br from-[#2d6a4f] to-[#1b4332] rounded-2xl p-6 text-white">
               <div className="flex items-center gap-2 mb-2">
@@ -368,27 +402,42 @@ export default function TripPlannerPage() {
                         </div>
                       </div>
                       <div className="flex-1 min-w-0 pb-2">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          {item.place_id ? (
-                            <Link
-                              href={`/places/${item.place_id}`}
-                              className="font-medium text-gray-800 hover:text-[#2d6a4f] transition-colors text-sm"
-                            >
-                              {item.place_name} →
-                            </Link>
-                          ) : (
-                            <span className="font-medium text-gray-800 text-sm">{item.place_name}</span>
+                        <div className="flex items-start gap-3">
+                          {item.cover_image && (
+                            <div className="w-16 h-12 rounded-lg overflow-hidden flex-shrink-0 border border-gray-100">
+                              <Image
+                                src={item.cover_image}
+                                alt={item.place_name}
+                                width={64}
+                                height={48}
+                                className="w-full h-full object-cover"
+                              />
+                            </div>
                           )}
-                          <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
-                            {item.duration}
-                          </span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              {item.place_id ? (
+                                <Link
+                                  href={`/places/${item.place_id}`}
+                                  className="font-medium text-gray-800 hover:text-[#2d6a4f] transition-colors text-sm"
+                                >
+                                  {item.place_name} →
+                                </Link>
+                              ) : (
+                                <span className="font-medium text-gray-800 text-sm">{item.place_name}</span>
+                              )}
+                              <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+                                {item.duration}
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-600 mt-0.5">{item.activity}</p>
+                            {item.tip && (
+                              <p className="text-xs text-[#40916c] mt-1.5 bg-green-50 px-2.5 flex items-center gap-1 py-1 rounded-lg inline-block">
+                                <Lightbulb className="w-3 h-3" /> {item.tip}
+                              </p>
+                            )}
+                          </div>
                         </div>
-                        <p className="text-sm text-gray-600 mt-0.5">{item.activity}</p>
-                        {item.tip && (
-                          <p className="text-xs text-[#40916c] mt-1.5 bg-green-50 px-2.5 flex items-center gap-1 py-1 rounded-lg inline-block">
-                            <Lightbulb className="w-3 h-3" /> {item.tip}
-                          </p>
-                        )}
                       </div>
                     </div>
                   ))}

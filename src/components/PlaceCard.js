@@ -30,14 +30,39 @@ export default function PlaceCard({ place, index = 0 }) {
             <div
               className={`w-full h-full bg-gradient-to-br ${gradientClass} flex items-center justify-center text-white`}
             >
-              {place.category?.icon || <ImageIcon className="w-16 h-16" />}
+              {(() => {
+                const primaryEntry = place.categories?.find((c) => c.is_primary) || place.categories?.[0];
+                const primaryCat = primaryEntry?.category || place.category;
+                return primaryCat?.icon || <ImageIcon className="w-16 h-16" />;
+              })()}
             </div>
           )}
-          {/* Category badge */}
-          <div className="absolute top-3 left-3">
-            <span className="bg-white/90 backdrop-blur-sm text-[#2d6a4f] text-xs font-medium px-2.5 py-1 rounded-full shadow-sm">
-              {place.category?.icon} {place.category?.name}
-            </span>
+          {/* Category badges */}
+          <div className="absolute top-3 left-3 flex flex-wrap gap-1 max-w-[90%]">
+            {place.categories && place.categories.length > 0 ? (
+              place.categories.map((pc) => {
+                const cat = pc.category || pc;
+                const color = cat.pin_color || '#2d6a4f';
+                return (
+                  <span
+                    key={cat.category_id}
+                    className="text-[11px] font-medium px-2 py-0.5 rounded-full shadow-sm flex items-center gap-0.5"
+                    style={{
+                      background: 'rgba(255,255,255,0.92)',
+                      backdropFilter: 'blur(4px)',
+                      color: color,
+                    }}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: color }} />
+                    {cat.icon} {cat.name}
+                  </span>
+                );
+              })
+            ) : (
+              <span className="bg-white/90 backdrop-blur-sm text-[#2d6a4f] text-xs font-medium px-2.5 py-1 rounded-full shadow-sm">
+                {place.category?.icon} {place.category?.name}
+              </span>
+            )}
           </div>
         </div>
 
@@ -46,9 +71,22 @@ export default function PlaceCard({ place, index = 0 }) {
           <h3 className="font-display font-semibold text-gray-900 text-base mb-1 group-hover:text-[#2d6a4f] transition-colors">
             {place.name}
           </h3>
-          <p className="text-gray-500 text-sm line-clamp-2 leading-relaxed mb-3">
-            {place.description}
-          </p>
+          {place.description && (
+            <div className="text-gray-500 text-sm leading-relaxed mb-3">
+              {place.description.split('\n').filter(l => l.trim()).slice(0, 3).map((line, i) => {
+                const trimmed = line.trim();
+                if (trimmed.startsWith('- ') || trimmed.startsWith('• ')) {
+                  return (
+                    <div key={i} className="flex items-start gap-1.5">
+                      <span className="w-1 h-1 rounded-full bg-[#2d6a4f] mt-[7px] flex-shrink-0" />
+                      <span className="line-clamp-1">{trimmed.slice(2)}</span>
+                    </div>
+                  );
+                }
+                return <p key={i} className="line-clamp-1">{trimmed}</p>;
+              })}
+            </div>
+          )}
 
           {/* Meta */}
           <div className="flex items-center justify-between text-xs text-gray-400">

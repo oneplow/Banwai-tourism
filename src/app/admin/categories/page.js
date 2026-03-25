@@ -6,7 +6,7 @@ import ConfirmModal from "@/components/admin/ConfirmModal";
 export default function AdminCategoriesPage() {
   const [categories, setCategories] = useState([]);
   const [modal, setModal] = useState(null);
-  const [form, setForm] = useState({ name: "", icon: "", sort_order: 0 });
+  const [form, setForm] = useState({ name: "", icon: "", pin_color: "#f59e0b", sort_order: 0 });
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
   const [msg, setMsg] = useState(null);
@@ -18,9 +18,9 @@ export default function AdminCategoriesPage() {
     fetch("/api/categories").then((r) => r.json()).then(setCategories);
   }, []);
 
-  const openAdd = () => { setForm({ name: "", icon: "", sort_order: 0 }); setModal("add"); };
+  const openAdd = () => { setForm({ name: "", icon: "", pin_color: "#f59e0b", sort_order: 0 }); setModal("add"); };
   const openEdit = (cat) => {
-    setForm({ name: cat.name || "", icon: cat.icon || "", sort_order: cat.sort_order || 0 });
+    setForm({ name: cat.name || "", icon: cat.icon || "", pin_color: cat.pin_color || "#f59e0b", sort_order: cat.sort_order || 0 });
     setModal(cat);
   };
 
@@ -106,7 +106,12 @@ export default function AdminCategoriesPage() {
           <tbody>
             {filtered.map((cat) => (
               <tr key={cat.category_id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
-                <td className="px-4 py-3 text-2xl text-center">{cat.icon}</td>
+                <td className="px-4 py-3 text-2xl text-center">
+                  <div className="flex items-center justify-center gap-2">
+                    <span className="w-3 h-3 rounded-full flex-shrink-0 border border-gray-200" style={{ backgroundColor: cat.pin_color || '#2d6a4f' }} />
+                    {cat.icon}
+                  </div>
+                </td>
                 <td className="px-4 py-3 font-medium text-gray-800">{cat.name}</td>
                 <td className="px-4 py-3 text-center text-gray-500">{cat.sort_order}</td>
                 <td className="px-4 py-3 text-center">
@@ -159,6 +164,45 @@ export default function AdminCategoriesPage() {
                 <label className="text-sm text-gray-600 mb-1.5 block font-medium">ลำดับการแสดงผล (น้อยไปมาก)</label>
                 <input type="number" value={form.sort_order} onChange={(e) => setForm({ ...form, sort_order: e.target.value })}
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#2d6a4f]" />
+              </div>
+              <div>
+                <label className="text-sm text-gray-600 mb-2 block font-medium">สีหมุดบนแผนที่</label>
+                <div className="flex flex-wrap gap-1.5 mb-2">
+                  {[
+                    { color: "#f59e0b", label: "เหลือง" },
+                    { color: "#22c55e", label: "เขียว" },
+                    { color: "#f97316", label: "ส้ม" },
+                    { color: "#a855f7", label: "ม่วง" },
+                    { color: "#06b6d4", label: "ฟ้า" },
+                    { color: "#e63946", label: "แดง" },
+                    { color: "#ec4899", label: "ชมพู" },
+                    { color: "#2d6a4f", label: "เขียวเข้ม" },
+                    { color: "#6366f1", label: "อินดิโก้" },
+                    { color: "#78716c", label: "เทา" },
+                  ].map((c) => (
+                    <button
+                      type="button"
+                      key={c.color}
+                      onClick={() => setForm({ ...form, pin_color: c.color })}
+                      className={`flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-medium border-2 transition-all ${
+                        form.pin_color === c.color
+                          ? "border-gray-800 shadow-md scale-105"
+                          : "border-transparent hover:border-gray-300"
+                      }`}
+                      style={{ backgroundColor: c.color + "20", color: c.color }}
+                    >
+                      <span className="w-3 h-3 rounded-full flex-shrink-0 border border-white shadow-sm" style={{ backgroundColor: c.color }} />
+                      {c.label}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-gray-400">หรือเลือกเอง:</label>
+                  <input type="color" value={form.pin_color || "#f59e0b"}
+                    onChange={(e) => setForm({ ...form, pin_color: e.target.value })}
+                    className="w-7 h-7 rounded-lg border border-gray-200 cursor-pointer" />
+                  <span className="text-xs font-mono text-gray-500">{form.pin_color}</span>
+                </div>
               </div>
             </div>
             <div className="flex gap-2 mt-6">

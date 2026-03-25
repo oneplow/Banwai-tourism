@@ -1,6 +1,17 @@
 import { prisma } from "@/lib/prisma";
 import { NextResponse } from "next/server";
 
+function serializePlace(place) {
+  const primary = place.categories?.find((c) => c.is_primary) || place.categories?.[0];
+  return {
+    ...place,
+    latitude: place.latitude ? Number(place.latitude) : null,
+    longitude: place.longitude ? Number(place.longitude) : null,
+    category: primary?.category || null,
+    category_id: primary?.category_id || null,
+  };
+}
+
 export async function GET(request, { params }) {
   const { id } = await params;
   try {
@@ -8,9 +19,12 @@ export async function GET(request, { params }) {
       where: { place_id: parseInt(id), is_active: true },
       data: { view_count: { increment: 1 } },
       include: {
-        category: true,
+        categories: {
+          include: { category: true },
+          orderBy: { is_primary: "desc" },
+        },
         images: { orderBy: { sort_order: "asc" } },
-        reviews: {
+        comments: {
           where: { status: "approved" },
           include: {
             replies: {
@@ -21,11 +35,7 @@ export async function GET(request, { params }) {
         },
       },
     });
-    return NextResponse.json({
-      ...place,
-      latitude: place.latitude ? Number(place.latitude) : null,
-      longitude: place.longitude ? Number(place.longitude) : null,
-    });
+    return NextResponse.json(serializePlace(place));
   } catch {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
@@ -35,20 +45,30 @@ export async function PUT(request, { params }) {
   const { id } = await params;
   try {
     const body = await request.json();
+    const categoryIds = body.category_ids || [];
+    const primaryCategoryId = body.primary_category_id || categoryIds[0];
+
     const place = await prisma.place.update({
       where: { place_id: parseInt(id) },
       data: {
-        category_id: parseInt(body.category_id),
         name: body.name,
         description: body.description,
         history: body.history,
         latitude: body.latitude || 0,
         longitude: body.longitude || 0,
+        map_url: body.map_url,
         address: body.address,
         phone: body.phone,
         open_hours: body.open_hours,
         cover_image: body.cover_image,
         is_active: body.is_active ?? true,
+        categories: {
+          deleteMany: {},
+          create: categoryIds.map((catId) => ({
+            category_id: catId,
+            is_primary: catId === primaryCategoryId,
+          })),
+        },
         images: {
           deleteMany: {},
           create: body.images?.map((img, index) => ({
@@ -58,13 +78,12 @@ export async function PUT(request, { params }) {
           })) || [],
         },
       },
-      include: { category: true, images: { orderBy: { sort_order: "asc" } } },
+      include: {
+        categories: { include: { category: true }, orderBy: { is_primary: "desc" } },
+        images: { orderBy: { sort_order: "asc" } },
+      },
     });
-    return NextResponse.json({
-      ...place,
-      latitude: place.latitude ? Number(place.latitude) : null,
-      longitude: place.longitude ? Number(place.longitude) : null,
-    });
+    return NextResponse.json(serializePlace(place));
   } catch (e) {
     console.error(e);
     return NextResponse.json({ error: "Update failed" }, { status: 400 });
@@ -75,23 +94,16 @@ export async function DELETE(request, { params }) {
   const { id } = await params;
   const placeId = parseInt(id);
   try {
-    // Hard delete with cascading cleanup of related data
     await prisma.$transaction([
-      // Delete review replies (through reviews)
-      prisma.reviewReply.deleteMany({
-        where: { review: { place_id: placeId } },
+      prisma.commentReply.deleteMany({
+        where: { comment: { place_id: placeId } },
       }),
-      // Delete reviews
-      prisma.review.deleteMany({ where: { place_id: placeId } }),
-      // Delete images
+      prisma.comment.deleteMany({ where: { place_id: placeId } }),
       prisma.placeImage.deleteMany({ where: { place_id: placeId } }),
-      // Delete staff permissions
       prisma.staffPermission.deleteMany({ where: { place_id: placeId } }),
-      // Delete favorites
       prisma.favorite.deleteMany({ where: { place_id: placeId } }),
-      // Delete view stats
       prisma.viewStat.deleteMany({ where: { place_id: placeId } }),
-      // Delete the place itself
+      prisma.placeCategory.deleteMany({ where: { place_id: placeId } }),
       prisma.place.delete({ where: { place_id: placeId } }),
     ]);
     return NextResponse.json({ success: true });

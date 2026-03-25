@@ -10,8 +10,8 @@ const STATUS_COLORS = {
   hidden: "bg-gray-100 text-gray-500",
 };
 
-export default function AdminReviewsPage() {
-  const [reviews, setReviews] = useState([]);
+export default function AdminCommentsPage() {
+  const [comments, setComments] = useState([]);
   const [filter, setFilter] = useState("pending");
   const [loading, setLoading] = useState(true);
   const [replyModal, setReplyModal] = useState(null);
@@ -35,30 +35,30 @@ export default function AdminReviewsPage() {
     });
   }, []);
 
-  const fetchReviews = async (status) => {
+  const fetchComments = async (status) => {
     setLoading(true);
-    const res = await fetch(`/api/reviews?status=${status}&all=true`);
+    const res = await fetch(`/api/comments?status=${status}&all=true`);
     let data = await res.json();
-    // Staff: filter reviews to only assigned places
+    // Staff: filter comments to only assigned places
     if (allowedPlaceIds !== null) {
       data = data.filter((r) => allowedPlaceIds.includes(r.place_id));
     }
-    setReviews(data);
+    setComments(data);
     setLoading(false);
   };
 
   useEffect(() => {
-    if (user !== null) fetchReviews(filter);
+    if (user !== null) fetchComments(filter);
   }, [filter, user]);
 
-  const updateStatus = async (reviewId, status) => {
-    const res = await fetch("/api/reviews", {
+  const updateStatus = async (commentId, status) => {
+    const res = await fetch("/api/comments", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ review_id: reviewId, status }),
+      body: JSON.stringify({ comment_id: commentId, status }),
     });
     if (res.ok) {
-      setReviews((prev) => prev.map((r) => r.review_id === reviewId ? { ...r, status } : r));
+      setComments((prev) => prev.map((r) => r.comment_id === commentId ? { ...r, status } : r));
       toast(`เปลี่ยนสถานะเป็น "${STATUS_LABELS[status]}" แล้ว`);
     }
   };
@@ -66,13 +66,13 @@ export default function AdminReviewsPage() {
   const submitReply = async () => {
     if (!replyText.trim()) return;
     setSaving(true);
-    const res = await fetch("/api/reviews/reply", {
+    const res = await fetch("/api/comments/reply", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ review_id: replyModal.review_id, reply_text: replyText }),
+      body: JSON.stringify({ comment_id: replyModal.comment_id, reply_text: replyText }),
     });
     setSaving(false);
-    if (res.ok) { toast("ตอบกลับสำเร็จ"); setReplyModal(null); setReplyText(""); fetchReviews(filter); }
+    if (res.ok) { toast("ตอบกลับสำเร็จ"); setReplyModal(null); setReplyText(""); fetchComments(filter); }
   };
 
   return (
@@ -84,7 +84,7 @@ export default function AdminReviewsPage() {
       )}
 
       <div className="mb-6">
-        <h1 className="font-display text-2xl font-bold text-gray-800">จัดการรีวิว</h1>
+        <h1 className="font-display text-2xl font-bold text-gray-800">จัดการความคิดเห็น</h1>
         <p className="text-gray-400 text-sm mt-0.5">ตรวจสอบและจัดการความคิดเห็น</p>
       </div>
 
@@ -102,47 +102,47 @@ export default function AdminReviewsPage() {
         <div className="space-y-3">
           {[1, 2, 3].map(i => <div key={i} className="h-24 bg-gray-100 rounded-2xl animate-pulse" />)}
         </div>
-      ) : reviews.length === 0 ? (
-        <div className="text-center py-20 text-gray-400"><div className="flex justify-center mb-3"><Mailbox className="w-10 h-10" /></div><p>ไม่มีรีวิว</p></div>
+      ) : comments.length === 0 ? (
+        <div className="text-center py-20 text-gray-400"><div className="flex justify-center mb-3"><Mailbox className="w-10 h-10" /></div><p>ไม่มีความคิดเห็น</p></div>
       ) : (
         <div className="space-y-3">
-          {reviews.map((review) => (
-            <div key={review.review_id} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+          {comments.map((item) => (
+            <div key={item.comment_id} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
               <div className="flex items-start justify-between gap-3 flex-wrap">
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <span className="font-medium text-gray-800 text-sm">{review.guest_name}</span>
-                    <StarRating rating={review.rating} size="sm" />
-                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[review.status]}`}>
-                      {STATUS_LABELS[review.status]}
+                    <span className="font-medium text-gray-800 text-sm">{item.guest_name}</span>
+                    <StarRating rating={item.rating} size="sm" />
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[item.status]}`}>
+                      {STATUS_LABELS[item.status]}
                     </span>
                   </div>
-                  <p className="text-sm text-gray-500 mb-1">{review.comment}</p>
+                  <p className="text-sm text-gray-500 mb-1">{item.comment}</p>
                   <div className="text-xs text-gray-400 flex items-center gap-1">
-                    <MapPin className="w-3 h-3" /> {review.place?.name} · {new Date(review.created_at).toLocaleDateString("th-TH")}
+                    <MapPin className="w-3 h-3" /> {item.place?.name} · {new Date(item.created_at).toLocaleDateString("th-TH")}
                   </div>
-                  {review.replies?.length > 0 && (
+                  {item.replies?.length > 0 && (
                     <div className="mt-2 pl-3 border-l-2 border-[#2d6a4f]/30 bg-green-50/50 rounded-r-lg py-2 pr-3">
                       <span className="flex items-center gap-1 text-xs text-[#2d6a4f] font-medium"><ShieldAlert className="w-3 h-3" /> ตอบกลับแล้ว: </span>
-                      <span className="text-xs text-gray-600">{review.replies[0].reply_text}</span>
+                      <span className="text-xs text-gray-600">{item.replies[0].reply_text}</span>
                     </div>
                   )}
                 </div>
                 <div className="flex gap-1.5 flex-wrap justify-end">
-                  {review.status !== "approved" && (
-                    <button onClick={() => updateStatus(review.review_id, "approved")}
+                  {item.status !== "approved" && (
+                    <button onClick={() => updateStatus(item.comment_id, "approved")}
                       className="text-xs px-2.5 py-1 rounded-lg bg-green-100 text-green-700 hover:bg-green-200 transition-colors">
                       อนุมัติ
                     </button>
                   )}
-                  {review.status !== "hidden" && (
-                    <button onClick={() => updateStatus(review.review_id, "hidden")}
+                  {item.status !== "hidden" && (
+                    <button onClick={() => updateStatus(item.comment_id, "hidden")}
                       className="text-xs px-2.5 py-1 rounded-lg bg-gray-100 text-gray-500 hover:bg-gray-200 transition-colors">
                       ซ่อน
                     </button>
                   )}
-                  {review.replies?.length === 0 && (
-                    <button onClick={() => { setReplyModal(review); setReplyText(""); }}
+                  {item.replies?.length === 0 && (
+                    <button onClick={() => { setReplyModal(item); setReplyText(""); }}
                       className="text-xs px-2.5 py-1 rounded-lg bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors">
                       ตอบกลับ
                     </button>
@@ -158,7 +158,7 @@ export default function AdminReviewsPage() {
       {replyModal && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4" onClick={(e) => e.target === e.currentTarget && setReplyModal(null)}>
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
-            <h3 className="font-display font-bold text-lg text-gray-800 mb-1">ตอบกลับรีวิว</h3>
+            <h3 className="font-display font-bold text-lg text-gray-800 mb-1">ตอบกลับความคิดเห็น</h3>
             <p className="text-sm text-gray-400 mb-4">จาก: {replyModal.guest_name}</p>
             <div className="bg-gray-50 rounded-xl p-3 mb-4 text-sm text-gray-600">{replyModal.comment}</div>
             <textarea rows={4} value={replyText} onChange={(e) => setReplyText(e.target.value)}

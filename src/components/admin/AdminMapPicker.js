@@ -121,13 +121,19 @@ export default function AdminMapPicker({ lat, lng, onChange }) {
     setSearching(true);
     searchTimeout.current = setTimeout(async () => {
       try {
+        // Use Esri ArcGIS World Geocoding Service (Free, no API key required, high accuracy)
         const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(value)}&limit=5&countrycodes=th&accept-language=th`,
-          { headers: { "User-Agent": "BanwaiTourism/1.0" } }
+          `https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates?singleLine=${encodeURIComponent(value)}&f=json&maxLocations=5&outFields=Place_addr,PlaceName`
         );
         const data = await res.json();
-        setSearchResults(data);
-        setShowResults(data.length > 0);
+        
+        if (data.candidates && data.candidates.length > 0) {
+          setSearchResults(data.candidates);
+          setShowResults(true);
+        } else {
+          setSearchResults([]);
+          setShowResults(false);
+        }
       } catch {
         setSearchResults([]);
       } finally {
@@ -138,11 +144,11 @@ export default function AdminMapPicker({ lat, lng, onChange }) {
 
   // Select a search result
   const selectResult = (result) => {
-    const newLat = parseFloat(result.lat);
-    const newLng = parseFloat(result.lon);
+    const newLat = parseFloat(result.location.y);
+    const newLng = parseFloat(result.location.x);
     onChange({ lat: newLat, lng: newLng });
     setFlyTarget([newLat, newLng]);
-    setSearchQuery(result.display_name.split(",")[0]);
+    setSearchQuery(result.address.split(",")[0]);
     setShowResults(false);
     setSearchResults([]);
   };
@@ -195,10 +201,10 @@ export default function AdminMapPicker({ lat, lng, onChange }) {
                 <span className="text-[#2d6a4f] mt-0.5 flex-shrink-0">📍</span>
                 <div className="min-w-0">
                   <div className="text-sm font-medium text-gray-800 truncate">
-                    {result.display_name.split(",")[0]}
+                    {result.address.split(",")[0]}
                   </div>
                   <div className="text-[11px] text-gray-400 truncate mt-0.5">
-                    {result.display_name.split(",").slice(1, 4).join(",")}
+                    {result.address.split(",").slice(1).join(",")}
                   </div>
                 </div>
               </button>
@@ -209,7 +215,7 @@ export default function AdminMapPicker({ lat, lng, onChange }) {
 
       {/* Coordinate display */}
       <div className="absolute bottom-2 right-2 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-lg text-xs font-medium text-gray-500 shadow-sm z-[1000] pointer-events-none">
-        พิกัด: {lat ? Number(lat).toFixed(6) : "-"}, {lng ? Number(lng).toFixed(6) : "-"}
+        พิกัด: {lat ? Number(lat).toFixed(14) : "-"}, {lng ? Number(lng).toFixed(14) : "-"}
       </div>
 
       {/* Hint */}
@@ -225,8 +231,9 @@ export default function AdminMapPicker({ lat, lng, onChange }) {
           scrollWheelZoom={true}
         >
           <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution='&copy; <a href="https://www.google.com/maps">Google Maps</a>'
+            url="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
+            maxZoom={22}
           />
           <ClickHandlerDynamic onClick={(coords) => {
             onChange(coords);

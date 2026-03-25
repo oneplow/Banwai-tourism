@@ -20,7 +20,7 @@ model User {
   updated_at    DateTime @updatedAt
 
   staff_permissions StaffPermission[]
-  review_replies    ReviewReply[]
+  comment_replies   CommentReply[]
   announcements     Announcement[]
 
   @@map("users")
@@ -30,21 +30,22 @@ model Category {
   category_id Int    @id @default(autoincrement())
   name        String @db.VarChar(100)
   icon        String @db.VarChar(100)
+  pin_color   String? @db.VarChar(7)
   sort_order  Int    @default(0)
 
-  places Place[]
+  places PlaceCategory[]
 
   @@map("categories")
 }
 
 model Place {
   place_id     Int      @id @default(autoincrement())
-  category_id  Int
   name         String   @db.VarChar(200)
   description  String?  @db.Text
   history      String?  @db.Text
-  latitude     Decimal  @db.Decimal(10, 7)
-  longitude    Decimal  @db.Decimal(10, 7)
+  latitude     Float
+  longitude    Float
+  map_url      String?  @db.Text
   address      String?  @db.VarChar(255)
   phone        String?  @db.VarChar(20)
   open_hours   String?  @db.VarChar(100)
@@ -54,14 +55,27 @@ model Place {
   created_at   DateTime @default(now())
   updated_at   DateTime @updatedAt
 
-  category          Category          @relation(fields: [category_id], references: [category_id])
+  categories        PlaceCategory[]
   images            PlaceImage[]
   staff_permissions StaffPermission[]
-  reviews           Review[]
+  comments          Comment[]
   favorites         Favorite[]
   view_stats        ViewStat[]
 
   @@map("places")
+}
+
+model PlaceCategory {
+  id          Int      @id @default(autoincrement())
+  place_id    Int
+  category_id Int
+  is_primary  Boolean  @default(false)
+
+  place    Place    @relation(fields: [place_id], references: [place_id], onDelete: Cascade)
+  category Category @relation(fields: [category_id], references: [category_id])
+
+  @@unique([place_id, category_id])
+  @@map("place_categories")
 }
 
 model PlaceImage {
@@ -89,32 +103,32 @@ model StaffPermission {
   @@map("staff_permissions")
 }
 
-model Review {
-  review_id  Int          @id @default(autoincrement())
+model Comment {
+  comment_id Int           @id @default(autoincrement())
   place_id   Int
-  guest_name String       @db.VarChar(100)
-  rating     Int          @db.TinyInt
-  comment    String?      @db.Text
-  status     ReviewStatus @default(pending)
-  created_at DateTime     @default(now())
+  guest_name String        @db.VarChar(100)
+  rating     Int           @db.TinyInt
+  comment    String?       @db.Text
+  status     CommentStatus @default(pending)
+  created_at DateTime      @default(now())
 
-  place   Place         @relation(fields: [place_id], references: [place_id])
-  replies ReviewReply[]
+  place   Place          @relation(fields: [place_id], references: [place_id])
+  replies CommentReply[]
 
-  @@map("reviews")
+  @@map("comments")
 }
 
-model ReviewReply {
+model CommentReply {
   reply_id   Int      @id @default(autoincrement())
-  review_id  Int
+  comment_id Int
   user_id    Int
   reply_text String   @db.Text
   created_at DateTime @default(now())
 
-  review Review @relation(fields: [review_id], references: [review_id])
-  user   User   @relation(fields: [user_id], references: [user_id])
+  comment Comment @relation(fields: [comment_id], references: [comment_id])
+  user    User    @relation(fields: [user_id], references: [user_id])
 
-  @@map("review_replies")
+  @@map("comment_replies")
 }
 
 model Announcement {
@@ -161,7 +175,7 @@ enum UserRole {
   staff
 }
 
-enum ReviewStatus {
+enum CommentStatus {
   pending
   approved
   hidden

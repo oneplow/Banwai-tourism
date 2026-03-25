@@ -7,7 +7,7 @@ export async function PUT(request, { params }) {
   try {
     const category = await prisma.category.update({
       where: { category_id: parseInt(id) },
-      data: { name: body.name, icon: body.icon, sort_order: parseInt(body.sort_order) || 0 },
+      data: { name: body.name, icon: body.icon, pin_color: body.pin_color, sort_order: parseInt(body.sort_order) || 0 },
     });
     return NextResponse.json(category);
   } catch (error) {

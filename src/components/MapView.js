@@ -64,14 +64,28 @@ function getPinColor(categoryName) {
   return CATEGORY_COLORS[categoryName] || DEFAULT_COLOR;
 }
 
+// Helper: get primary category from place (multi-category support)
+function getPrimaryCategory(place) {
+  if (place.categories && place.categories.length > 0) {
+    const primary = place.categories.find((c) => c.is_primary) || place.categories[0];
+    return primary.category || primary;
+  }
+  return place.category || null;
+}
+
+function getPrimaryCategoryColor(place) {
+  const cat = getPrimaryCategory(place);
+  return cat?.pin_color || getPinColor(cat?.name);
+}
+
 // บ้านหวาย หล่มสัก เพชรบูรณ์
 const CENTER = { lat: 16.7599, lng: 101.2921 };
 const DEFAULT_ZOOM = 14;
 
-function createCategoryIcon(categoryName, isActive = false) {
+function createCategoryIcon(categoryName, isActive = false, customColor = null) {
   if (typeof window === "undefined") return null;
   const L = require("leaflet");
-  const color = getPinColor(categoryName);
+  const color = customColor || getPinColor(categoryName);
   const size = isActive ? 40 : 32;
 
   return L.divIcon({
@@ -175,7 +189,13 @@ export default function MapView({ places = [], categories = [] }) {
   }, [userLoc, detailPlace]);
 
   const visiblePlaces = filterCat
-    ? places.filter((p) => p.category?.category_id === filterCat)
+    ? places.filter((p) => {
+        // Multi-category: check if any category matches
+        if (p.categories && p.categories.length > 0) {
+          return p.categories.some((c) => (c.category_id || c.category?.category_id) === filterCat);
+        }
+        return p.category?.category_id === filterCat;
+      })
     : places;
 
   // Filter places that have valid coordinates
@@ -233,8 +253,9 @@ export default function MapView({ places = [], categories = [] }) {
             zoomControl={true}
           >
             <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              attribution='&copy; <a href="https://www.google.com/maps">Google Maps</a>'
+              url="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
+              maxZoom={22}
             />
             {flyTarget && <FlyToDynamic position={flyTarget} zoom={16} />}
             {userLoc && (
@@ -256,8 +277,9 @@ export default function MapView({ places = [], categories = [] }) {
                 key={place.place_id}
                 position={[Number(place.latitude), Number(place.longitude)]}
                 icon={createCategoryIcon(
-                  place.category?.name,
-                  activeId === place.place_id
+                  getPrimaryCategory(place)?.name,
+                  activeId === place.place_id,
+                  getPrimaryCategoryColor(place)
                 )}
                 eventHandlers={{
                   click: () => handlePinClick(place),
@@ -272,7 +294,7 @@ export default function MapView({ places = [], categories = [] }) {
                     )}
                     <div className="font-bold text-sm mb-1">{place.name}</div>
                     <div className="text-xs text-gray-500 mb-2">
-                      {!place.cover_image && place.category?.icon} {place.category?.name}
+                      {!place.cover_image && getPrimaryCategory(place)?.icon} {getPrimaryCategory(place)?.name}
                     </div>
                     <button
                       onClick={() => goToDetail(place.place_id)}
@@ -298,10 +320,10 @@ export default function MapView({ places = [], categories = [] }) {
 
         {/* Legend */}
         <div className="absolute bottom-3.5 right-3.5 z-[1000] bg-white/90 backdrop-blur-md rounded-xl px-3 py-2 border border-black/10 text-[10px] leading-relaxed shadow-sm">
-          {Object.entries(CATEGORY_COLORS).map(([name, color]) => (
-            <div key={name} className="flex items-center gap-1.5 mb-0.5 last:mb-0">
-              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: color }} />
-              <span className="text-gray-700">{name}</span>
+          {categories.map((cat) => (
+            <div key={cat.category_id} className="flex items-center gap-1.5 mb-0.5 last:mb-0">
+              <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: cat.pin_color || getPinColor(cat.name) }} />
+              <span className="text-gray-700">{cat.name}</span>
             </div>
           ))}
         </div>
@@ -351,7 +373,8 @@ export default function MapView({ places = [], categories = [] }) {
             <div className="text-center py-16 text-gray-400 text-sm">ไม่พบสถานที่</div>
           ) : (
             visiblePlaces.map((place) => {
-              const color = getPinColor(place.category?.name);
+              const color = getPrimaryCategoryColor(place);
+              const primaryCat = getPrimaryCategory(place);
               const isActive = activeId === place.place_id;
               return (
                 <div
@@ -369,15 +392,28 @@ export default function MapView({ places = [], categories = [] }) {
                     {place.cover_image ? (
                       <img src={place.cover_image} alt={place.name} className="w-full h-full object-cover" />
                     ) : (
-                      place.category?.icon || <ImageIcon className="w-5 h-5 opacity-50" />
+                      primaryCat?.icon || <ImageIcon className="w-5 h-5 opacity-50" />
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-bold text-gray-800 truncate mb-0.5">
                       {place.name}
                     </div>
-                    <div className="text-xs text-gray-500 flex items-center gap-1.5">
-                      <span className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full" style={{ background: color }}></div> {place.category?.name}</span>
+                    <div className="text-xs text-gray-500 flex items-center gap-1.5 flex-wrap">
+                      {place.categories && place.categories.length > 0 ? (
+                        place.categories.map((pc) => {
+                          const cat = pc.category || pc;
+                          const catColor = cat.pin_color || getPinColor(cat.name);
+                          return (
+                            <span key={cat.category_id} className="flex items-center gap-0.5">
+                              <div className="w-1.5 h-1.5 rounded-full" style={{ background: catColor }} />
+                              {cat.name}
+                            </span>
+                          );
+                        })
+                      ) : (
+                        <span className="flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full" style={{ background: color }}></div> {primaryCat?.name}</span>
+                      )}
                       <span className="text-gray-300">|</span>
                       <span className="flex items-center gap-1"><Eye className="w-3 h-3" /> {place.view_count}</span>
                     </div>
@@ -405,7 +441,7 @@ export default function MapView({ places = [], categories = [] }) {
             <div
               className="h-48 min-h-[192px] flex items-center justify-center relative flex-shrink-0 overflow-hidden"
               style={{
-                background: getPinColor(detailPlace.category?.name) + "25",
+                background: getPrimaryCategoryColor(detailPlace) + "25",
               }}
             >
               {detailPlace.cover_image && (
@@ -422,22 +458,45 @@ export default function MapView({ places = [], categories = [] }) {
               </button>
               {!detailPlace.cover_image && (
                 <span className="text-[#2d6a4f] flex items-center justify-center w-24 h-24 z-10 text-6xl drop-shadow-sm">
-                  {detailPlace?.category?.icon || <ImageIcon className="w-16 h-16 opacity-50" />}
+                  {getPrimaryCategory(detailPlace)?.icon || <ImageIcon className="w-16 h-16 opacity-50" />}
                 </span>
               )}
             </div>
 
             {/* Content Margin / Overlap */}
             <div className="flex-1 bg-white -mt-6 rounded-t-3xl relative z-20 px-5 pt-7 pb-8 flex flex-col min-h-0">
-              <div
-                className="inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1 rounded-full mb-3 self-start"
-                style={{
-                  background: getPinColor(detailPlace.category?.name) + "15",
-                  color: getPinColor(detailPlace.category?.name),
-                  border: `1px solid ${getPinColor(detailPlace.category?.name)}30`
-                }}
-              >
-                {detailPlace.category?.icon} {detailPlace.category?.name}
+              <div className="flex flex-wrap gap-1.5 mb-3">
+                {detailPlace.categories && detailPlace.categories.length > 0 ? (
+                  detailPlace.categories.map((pc) => {
+                    const cat = pc.category || pc;
+                    const catColor = cat.pin_color || getPinColor(cat.name);
+                    return (
+                      <span
+                        key={cat.category_id}
+                        className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full"
+                        style={{
+                          background: catColor + "15",
+                          color: catColor,
+                          border: `1px solid ${catColor}30`
+                        }}
+                      >
+                        {cat.icon} {cat.name}
+                        {pc.is_primary && ' ★'}
+                      </span>
+                    );
+                  })
+                ) : (
+                  <span
+                    className="inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-1 rounded-full"
+                    style={{
+                      background: getPrimaryCategoryColor(detailPlace) + "15",
+                      color: getPrimaryCategoryColor(detailPlace),
+                      border: `1px solid ${getPrimaryCategoryColor(detailPlace)}30`
+                    }}
+                  >
+                    {detailPlace.category?.icon} {detailPlace.category?.name}
+                  </span>
+                )}
               </div>
 
               <h3 className="font-display font-bold text-2xl text-[#1b4332] mb-3 leading-tight pr-2">
@@ -445,10 +504,22 @@ export default function MapView({ places = [], categories = [] }) {
               </h3>
 
               {detailPlace.description && (
-                <p className="text-gray-600 text-sm leading-relaxed mb-5">
-                  {detailPlace.description.slice(0, 150)}
-                  {detailPlace.description.length > 150 ? "..." : ""}
-                </p>
+                <div className="text-gray-600 text-sm leading-relaxed mb-5 space-y-0.5">
+                  {detailPlace.description.slice(0, 300).split('\n').map((line, i) => {
+                    const trimmed = line.trim();
+                    if (!trimmed) return null;
+                    if (trimmed.startsWith('- ') || trimmed.startsWith('• ')) {
+                      return (
+                        <div key={i} className="flex items-start gap-2 py-0.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#2d6a4f] mt-1.5 flex-shrink-0" />
+                          <span>{trimmed.slice(2)}</span>
+                        </div>
+                      );
+                    }
+                    return <p key={i}>{trimmed}</p>;
+                  })}
+                  {detailPlace.description.length > 300 && <span className="text-gray-400">...</span>}
+                </div>
               )}
 
               {/* Meta grid */}
@@ -486,4 +557,3 @@ export default function MapView({ places = [], categories = [] }) {
     </div>
   );
 }
-```

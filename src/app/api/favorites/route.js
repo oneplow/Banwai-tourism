@@ -8,7 +8,7 @@ export async function GET(request) {
 
   const favorites = await prisma.favorite.findMany({
     where: { session_id: sessionId },
-    include: { place: { include: { category: true } } },
+    include: { place: { include: { categories: { include: { category: true }, orderBy: { is_primary: "desc" } } } } },
     orderBy: { created_at: "desc" },
   });
   return NextResponse.json(favorites);

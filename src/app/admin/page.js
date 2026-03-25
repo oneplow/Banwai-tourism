@@ -11,20 +11,20 @@ export default async function AdminDashboardPage() {
   const token = cookieStore.get("bw_token")?.value;
   const payload = await verifyToken(token);
 
-  const [totalPlaces, totalReviews, pendingReviews, totalAnnouncements, totalUsers, topPlaces, recentReviews] =
+  const [totalPlaces, totalComments, pendingComments, totalAnnouncements, totalUsers, topPlaces, recentComments] =
     await Promise.all([
       prisma.place.count({ where: { is_active: true } }),
-      prisma.review.count(),
-      prisma.review.count({ where: { status: "pending" } }),
+      prisma.comment.count(),
+      prisma.comment.count({ where: { status: "pending" } }),
       prisma.announcement.count({ where: { is_published: true } }),
       prisma.user.count(),
       prisma.place.findMany({
         where: { is_active: true },
         orderBy: { view_count: "desc" },
         take: 5,
-        include: { category: { select: { icon: true, name: true } } },
+        include: { categories: { include: { category: true }, orderBy: { is_primary: "desc" } } },
       }),
-      prisma.review.findMany({
+      prisma.comment.findMany({
         where: { status: "pending" },
         orderBy: { created_at: "desc" },
         take: 3,
@@ -34,8 +34,8 @@ export default async function AdminDashboardPage() {
 
   const stats = [
     { label: "สถานที่", value: totalPlaces, icon: <Landmark className="w-6 h-6" />, href: "/admin/places", color: "bg-green-50 border-green-200" },
-    { label: "รีวิว", value: totalReviews, icon: <Star className="w-6 h-6" />, href: "/admin/reviews", color: "bg-amber-50 border-amber-200" },
-    { label: "รอตรวจสอบ", value: pendingReviews, icon: <Hourglass className="w-6 h-6" />, href: "/admin/reviews", color: "bg-orange-50 border-orange-200" },
+    { label: "ความคิดเห็น", value: totalComments, icon: <Star className="w-6 h-6" />, href: "/admin/comments", color: "bg-amber-50 border-amber-200" },
+    { label: "รอตรวจสอบ", value: pendingComments, icon: <Hourglass className="w-6 h-6" />, href: "/admin/comments", color: "bg-orange-50 border-orange-200" },
     { label: "ประกาศ", value: totalAnnouncements, icon: <Megaphone className="w-6 h-6" />, href: "/admin/announcements", color: "bg-blue-50 border-blue-200" },
     { label: "ผู้ใช้", value: totalUsers, icon: <User className="w-6 h-6" />, href: "/admin/users", color: "bg-purple-50 border-purple-200" },
   ];
@@ -63,7 +63,7 @@ export default async function AdminDashboardPage() {
           <div className="grid grid-cols-2 gap-2">
             {[
               { label: "จัดการสถานที่", href: "/admin/places", icon: <Landmark className="w-5 h-5" /> },
-              { label: "ตรวจรีวิว", href: "/admin/reviews", icon: <CheckCircle className="w-5 h-5" /> },
+              { label: "ตรวจความคิดเห็น", href: "/admin/comments", icon: <CheckCircle className="w-5 h-5" /> },
               { label: "สถิติกราฟ", href: "/admin/stats", icon: <BarChart className="w-5 h-5" /> },
               { label: "จัดการผู้ใช้", href: "/admin/users", icon: <Users className="w-5 h-5" /> },
             ].map((item) => (
@@ -81,28 +81,30 @@ export default async function AdminDashboardPage() {
             <Link href="/admin/stats" className="text-xs text-[#2d6a4f] hover:underline">ดูทั้งหมด →</Link>
           </div>
           <div className="space-y-2.5">
-            {topPlaces.map((place, i) => (
+            {topPlaces.map((place, i) => {
+              const primaryCat = place.categories?.[0]?.category;
+              return (
               <div key={place.place_id} className="flex items-center gap-3">
                 <span className={`text-base font-bold w-6 text-center ${i === 0 ? "text-amber-400" : i === 1 ? "text-gray-400" : "text-gray-300"}`}>{i + 1}</span>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium text-gray-800 truncate">{place.name}</div>
-                  <div className="text-xs text-gray-400">{place.category?.icon} {place.category?.name}</div>
+                  <div className="text-xs text-gray-400">{primaryCat?.icon} {primaryCat?.name}</div>
                 </div>
                 <span className="text-xs text-gray-400 font-mono">{place.view_count.toLocaleString()}</span>
               </div>
-            ))}
+            )})}
           </div>
         </div>
 
-        {pendingReviews > 0 && (
+        {pendingComments > 0 && (
           <div className="bg-orange-50 rounded-2xl p-5 border border-orange-100 lg:col-span-2">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="font-semibold text-orange-800 flex items-center gap-2"><Hourglass className="w-5 h-5" /> รีวิวรอตรวจสอบ ({pendingReviews})</h2>
-              <Link href="/admin/reviews" className="text-xs text-orange-600 font-medium hover:underline">ตรวจสอบ →</Link>
+              <h2 className="font-semibold text-orange-800 flex items-center gap-2"><Hourglass className="w-5 h-5" /> ความคิดเห็นรอตรวจสอบ ({pendingComments})</h2>
+              <Link href="/admin/comments" className="text-xs text-orange-600 font-medium hover:underline">ตรวจสอบ →</Link>
             </div>
             <div className="space-y-2">
-              {recentReviews.map((r) => (
-                <div key={r.review_id} className="bg-white rounded-xl px-3 py-2.5 border border-orange-100 flex items-center gap-3 text-sm">
+              {recentComments.map((r) => (
+                <div key={r.comment_id} className="bg-white rounded-xl px-3 py-2.5 border border-orange-100 flex items-center gap-3 text-sm">
                   <span className="flex items-center text-amber-400 gap-0.5">{Array(r.rating).fill(0).map((_, idx) => <Star key={idx} className="w-3 h-3 fill-amber-400 text-amber-400" />)}</span>
                   <span className="font-medium text-gray-700">{r.guest_name}</span>
                   <span className="text-gray-400 text-xs">· {r.place?.name}</span>

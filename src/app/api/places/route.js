@@ -10,7 +10,9 @@ export async function GET(request) {
 
     const where = {
       ...(admin ? {} : { is_active: true }),
-      ...(category && { category_id: parseInt(category) }),
+      ...(category && {
+        categories: { some: { category_id: parseInt(category) } },
+      }),
       ...(search && {
         OR: [
           { name: { contains: search } },
@@ -22,19 +24,28 @@ export async function GET(request) {
     const places = await prisma.place.findMany({
       where,
       include: {
-        category: true,
+        categories: {
+          include: { category: true },
+          orderBy: { is_primary: "desc" },
+        },
         images: { orderBy: { sort_order: "asc" } },
-        reviews: { where: { status: "approved" }, select: { rating: true } },
+        comments: { where: { status: "approved" }, select: { rating: true } },
       },
       orderBy: { view_count: "desc" },
     });
 
-    // Serialize Decimal fields
-    const serialized = places.map((p) => ({
-      ...p,
-      latitude: p.latitude ? Number(p.latitude) : null,
-      longitude: p.longitude ? Number(p.longitude) : null,
-    }));
+    // Serialize: add computed primaryCategory + category (for backward compat)
+    const serialized = places.map((p) => {
+      const primary = p.categories.find((c) => c.is_primary) || p.categories[0];
+      return {
+        ...p,
+        latitude: p.latitude ? Number(p.latitude) : null,
+        longitude: p.longitude ? Number(p.longitude) : null,
+        // Backward compat: flatten primary category
+        category: primary?.category || null,
+        category_id: primary?.category_id || null,
+      };
+    });
 
     return NextResponse.json(serialized);
   } catch (error) {
@@ -46,19 +57,28 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const body = await request.json();
+    const categoryIds = body.category_ids || [];
+    const primaryCategoryId = body.primary_category_id || categoryIds[0];
+
     const place = await prisma.place.create({
       data: {
-        category_id: parseInt(body.category_id),
         name: body.name,
         description: body.description,
         history: body.history,
         latitude: body.latitude || 0,
         longitude: body.longitude || 0,
+        map_url: body.map_url,
         address: body.address,
         phone: body.phone,
         open_hours: body.open_hours,
         cover_image: body.cover_image,
         is_active: body.is_active ?? true,
+        categories: {
+          create: categoryIds.map((catId) => ({
+            category_id: catId,
+            is_primary: catId === primaryCategoryId,
+          })),
+        },
         images: {
           create: body.images?.map((img, index) => ({
             image_url: img.image_url,
@@ -67,12 +87,19 @@ export async function POST(request) {
           })) || [],
         },
       },
-      include: { category: true, images: true },
+      include: {
+        categories: { include: { category: true }, orderBy: { is_primary: "desc" } },
+        images: true,
+      },
     });
+
+    const primary = place.categories.find((c) => c.is_primary) || place.categories[0];
     return NextResponse.json({
       ...place,
       latitude: place.latitude ? Number(place.latitude) : null,
       longitude: place.longitude ? Number(place.longitude) : null,
+      category: primary?.category || null,
+      category_id: primary?.category_id || null,
     }, { status: 201 });
   } catch (error) {
     console.error("POST /api/places error:", error);

@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import StarRating from "@/components/StarRating";
-import PlaceReviews from "@/components/PlaceReviews";
+import PlaceComments from "@/components/PlaceComments";
 import FavoriteButton from "@/components/FavoriteButton";
 import ShareButtons from "@/components/ShareButtons";
 import PlaceImageCarousel from "@/components/PlaceImageCarousel";
@@ -47,9 +47,12 @@ export default async function PlaceDetailPage({ params }) {
         view_count: { increment: 1 },
       },
       include: {
-        category: true,
+        categories: {
+          include: { category: true },
+          orderBy: { is_primary: "desc" },
+        },
         images: { orderBy: { sort_order: "asc" } },
-        reviews: {
+        comments: {
           where: { status: "approved" },
           include: {
             replies: {
@@ -87,11 +90,12 @@ export default async function PlaceDetailPage({ params }) {
   if (!place) notFound();
 
   const avgRating =
-    place.reviews.length > 0
-      ? place.reviews.reduce((s, r) => s + r.rating, 0) / place.reviews.length
+    place.comments.length > 0
+      ? place.comments.reduce((s, r) => s + r.rating, 0) / place.comments.length
       : 0;
 
-  const gradClass = GRAD[place.category_id % GRAD.length];
+  const primaryCat = place.categories?.find((c) => c.is_primary)?.category || place.categories?.[0]?.category || place.category;
+  const gradClass = GRAD[(primaryCat?.category_id || 0) % GRAD.length];
 
   return (
     <>
@@ -99,17 +103,31 @@ export default async function PlaceDetailPage({ params }) {
 
       <div className="max-w-6xl mx-auto px-4 py-8">
         {/* Breadcrumb */}
-        <nav className="flex items-center gap-2 text-sm text-gray-400 mb-6 font-medium">
+        <nav className="flex items-center gap-2 text-sm text-gray-400 mb-6 font-medium flex-wrap">
           <Link href="/" className="hover:text-[#2d6a4f] transition-colors">หน้าแรก</Link>
           <span>/</span>
           <Link href="/places" className="hover:text-[#2d6a4f] transition-colors">สถานที่ท่องเที่ยว</Link>
           <span>/</span>
-          <Link
-            href={`/places?category=${place.category_id}`}
-            className="hover:text-[#2d6a4f] transition-colors flex items-center gap-1"
-          >
-            {place.category?.icon} {place.category?.name}
-          </Link>
+          {place.categories && place.categories.length > 0 ? (
+            place.categories.map((pc, idx) => {
+              const cat = pc.category;
+              return (
+                <span key={cat.category_id} className="flex items-center gap-1">
+                  <Link
+                    href={`/places?category=${cat.category_id}`}
+                    className="hover:text-[#2d6a4f] transition-colors flex items-center gap-1"
+                  >
+                    {cat.icon} {cat.name}
+                  </Link>
+                  {idx < place.categories.length - 1 && <span className="text-gray-300 mx-0.5">·</span>}
+                </span>
+              );
+            })
+          ) : (
+            <Link href={`/places?category=${place.category_id}`} className="hover:text-[#2d6a4f] transition-colors flex items-center gap-1">
+              {place.category?.icon} {place.category?.name}
+            </Link>
+          )}
           <span>/</span>
           <span className="text-gray-800 truncate max-w-[200px] sm:max-w-xs">{place.name}</span>
         </nav>
@@ -124,11 +142,11 @@ export default async function PlaceDetailPage({ params }) {
                   {place.name}
                 </h1>
                 <div className="flex items-center gap-3">
-                  {place.reviews.length > 0 && (
+                  {place.comments.length > 0 && (
                     <div className="flex items-center gap-1.5 bg-yellow-50 px-2.5 py-1 rounded-full text-yellow-700">
                       <StarRating rating={Math.round(avgRating)} size="sm" />
                       <span className="text-xs font-bold ml-1">
-                        {avgRating.toFixed(1)} <span className="text-yellow-600/70 font-normal">({place.reviews.length} รีวิว)</span>
+                        {avgRating.toFixed(1)} <span className="text-yellow-600/70 font-normal">({place.comments.length} ความคิดเห็น)</span>
                       </span>
                     </div>
                   )}
@@ -158,8 +176,20 @@ export default async function PlaceDetailPage({ params }) {
                   <ImageIcon className="w-6 h-6 text-[#2d6a4f]" />
                   เกี่ยวกับสถานที่นี้
                 </h2>
-                <div className="prose prose-gray max-w-none text-gray-600 leading-relaxed text-base">
-                  <p>{place.description}</p>
+                <div className="text-gray-600 leading-relaxed text-base space-y-1">
+                  {place.description.split('\n').map((line, i) => {
+                    const trimmed = line.trim();
+                    if (!trimmed) return <div key={i} className="h-2" />;
+                    if (trimmed.startsWith('- ') || trimmed.startsWith('• ')) {
+                      return (
+                        <div key={i} className="flex items-start gap-2.5 py-0.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#2d6a4f] mt-2 flex-shrink-0" />
+                          <span>{trimmed.slice(2)}</span>
+                        </div>
+                      );
+                    }
+                    return <p key={i} className="py-0.5">{trimmed}</p>;
+                  })}
                 </div>
               </section>
             )}
@@ -171,7 +201,7 @@ export default async function PlaceDetailPage({ params }) {
                   ประวัติความเป็นมา
                 </h2>
                 <div className="bg-[#f8f4ef] rounded-3xl p-6 sm:p-8 border-l-[6px] border-[#2d6a4f] shadow-inner">
-                  <p className="text-gray-700 leading-relaxed italic text-[15px]">{place.history}</p>
+                  <div className="text-gray-700 leading-relaxed italic text-[15px] whitespace-pre-line">{place.history}</div>
                 </div>
               </section>
             )}
@@ -183,9 +213,9 @@ export default async function PlaceDetailPage({ params }) {
             <div>
               <h2 className="font-display font-bold text-2xl text-[#1b4332] mb-6 flex items-center gap-2">
                 <MessageSquare className="w-6 h-6 text-[#2d6a4f]" />
-                ความคิดเห็น ({place.reviews.length})
+                ความคิดเห็น ({place.comments.length})
               </h2>
-              <PlaceReviews placeId={place.place_id} initialReviews={place.reviews} avgRating={avgRating} />
+              <PlaceComments placeId={place.place_id} initialComments={place.comments} avgRating={avgRating} />
             </div>
           </div>
 
@@ -217,7 +247,7 @@ export default async function PlaceDetailPage({ params }) {
                   {place.latitude && place.longitude && (
                     <div className="pt-2">
                       <a
-                        href={`https://www.google.com/maps?q=${place.latitude},${place.longitude}`}
+                        href={place.map_url || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.name)}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex items-center justify-center gap-2 w-full bg-[#edf7f2] text-[#2d6a4f] py-3 rounded-xl font-bold text-sm hover:bg-[#d8efe3] transition-colors border border-[#2d6a4f]/20"

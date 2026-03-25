@@ -6,15 +6,20 @@ import FeaturedCarousel from "@/components/FeaturedCarousel";
 import { Bot, Heart, Copyright, MapPin, Compass, Users, Megaphone } from "lucide-react";
 
 function serializePlace(p) {
+  const primaryEntry = p.categories?.find((c) => c.is_primary) || p.categories?.[0];
+  const cat = primaryEntry?.category || null;
   return {
     ...p,
     latitude: p.latitude ? Number(p.latitude) : null,
     longitude: p.longitude ? Number(p.longitude) : null,
     created_at: p.created_at?.toISOString?.() ?? p.created_at,
     updated_at: p.updated_at?.toISOString?.() ?? p.updated_at,
-    category: p.category
-      ? { ...p.category, created_at: undefined, updated_at: undefined }
-      : null,
+    category: cat ? { ...cat, created_at: undefined, updated_at: undefined } : null,
+    category_id: primaryEntry?.category_id || null,
+    categories: p.categories?.map((pc) => ({
+      ...pc,
+      category: pc.category ? { ...pc.category, created_at: undefined, updated_at: undefined } : null,
+    })),
   };
 }
 
@@ -22,7 +27,12 @@ export default async function HomePage() {
   const [allPlaces, categories, announcements] = await Promise.all([
     prisma.place.findMany({
       where: { is_active: true },
-      include: { category: true },
+      include: {
+        categories: {
+          include: { category: true },
+          orderBy: { is_primary: "desc" },
+        },
+      },
       orderBy: { view_count: "desc" },
     }),
     prisma.category.findMany({ orderBy: { sort_order: "asc" } }),

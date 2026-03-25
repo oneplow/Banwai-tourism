@@ -54,7 +54,7 @@ export default function Navbar() {
             href="/favorites"
             className="text-gray-600 hover:text-[#2d6a4f] transition-colors flex items-center gap-1"
           >
-            <Heart className="w-4 h-4 text-red-500 fill-red-500" /> บันทึก
+            {/* <Heart className="w-4 h-4 text-red-500 fill-red-500" /> */} บันทึก
           </Link>
           <Link
             href="/announcements"
@@ -62,12 +62,12 @@ export default function Navbar() {
           >
             ข่าวสาร
           </Link>
-          <Link
+          {/* <Link
             href="/admin"
             className="px-4 py-1.5 rounded-full bg-[#2d6a4f] text-white hover:bg-[#1b4332] transition-colors text-sm"
           >
             จัดการระบบ
-          </Link>
+          </Link> */}
         </div>
 
         {/* Mobile Menu Button */}

@@ -75,8 +75,8 @@ export default function AdminStatsPage() {
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
         <StatCard icon={<Landmark className="w-6 h-6" />} label="สถานที่ทั้งหมด" value={data?.summary?.totalPlaces ?? "—"} />
         <StatCard icon={<Eye className="w-6 h-6" />} label="ยอดเข้าชมรวม" value={data?.summary?.totalViews ?? "—"} />
-        <StatCard icon={<Star className="w-6 h-6" />} label="รีวิวทั้งหมด" value={data?.summary?.totalReviews ?? "—"}
-          sub={data?.summary?.pendingReviews > 0 ? `รอตรวจสอบ ${data.summary.pendingReviews}` : null} />
+        <StatCard icon={<Star className="w-6 h-6" />} label="ความคิดเห็นทั้งหมด" value={data?.summary?.totalComments ?? "—"}
+          sub={data?.summary?.pendingComments > 0 ? `รอตรวจสอบ ${data.summary.pendingComments}` : null} />
         <StatCard icon={<Heart className="w-6 h-6" />} label="บันทึกถูกใจ" value={data?.summary?.totalFavorites ?? "—"} />
         <StatCard icon={<BarChartIcon className="w-6 h-6" />} label="สถานะ" value="ปกติ" />
       </div>

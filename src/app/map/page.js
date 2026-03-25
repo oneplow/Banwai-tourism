@@ -13,23 +13,36 @@ export default async function MapPage() {
   const [places, categories] = await Promise.all([
     prisma.place.findMany({
       where: { is_active: true },
-      include: { category: true },
+      include: {
+        categories: {
+          include: { category: true },
+          orderBy: { is_primary: "desc" },
+        },
+      },
       orderBy: { view_count: "desc" },
     }),
     prisma.category.findMany({ orderBy: { sort_order: "asc" } }),
   ]);
 
   // Serialize Decimal → number for client components
-  const serializedPlaces = places.map((p) => ({
-    ...p,
-    latitude: p.latitude ? Number(p.latitude) : null,
-    longitude: p.longitude ? Number(p.longitude) : null,
-    created_at: p.created_at?.toISOString?.() ?? p.created_at,
-    updated_at: p.updated_at?.toISOString?.() ?? p.updated_at,
-    category: p.category
-      ? { ...p.category, created_at: undefined, updated_at: undefined }
-      : null,
-  }));
+  const serializedPlaces = places.map((p) => {
+    const primaryEntry = p.categories?.find((c) => c.is_primary) || p.categories?.[0];
+    return {
+      ...p,
+      latitude: p.latitude ? Number(p.latitude) : null,
+      longitude: p.longitude ? Number(p.longitude) : null,
+      created_at: p.created_at?.toISOString?.() ?? p.created_at,
+      updated_at: p.updated_at?.toISOString?.() ?? p.updated_at,
+      category: primaryEntry?.category
+        ? { ...primaryEntry.category, created_at: undefined, updated_at: undefined }
+        : null,
+      category_id: primaryEntry?.category_id || null,
+      categories: p.categories?.map((pc) => ({
+        ...pc,
+        category: pc.category ? { ...pc.category, created_at: undefined, updated_at: undefined } : null,
+      })),
+    };
+  });
 
   return (
     <>

@@ -29,7 +29,7 @@ export default async function PlacesPage({ searchParams }) {
     prisma.place.findMany({
       where: {
         is_active: true,
-        ...(categoryId && { category_id: categoryId }),
+        ...(categoryId && { categories: { some: { category_id: categoryId } } }),
         ...(search && {
           OR: [
             { name: { contains: search } },
@@ -39,20 +39,29 @@ export default async function PlacesPage({ searchParams }) {
         }),
       },
       include: {
-        category: true,
-        reviews: { where: { status: "approved" }, select: { rating: true } },
+        categories: {
+          include: { category: true },
+          orderBy: { is_primary: "desc" },
+        },
+        comments: { where: { status: "approved" }, select: { rating: true } },
       },
       orderBy,
     }),
     prisma.category.findMany({ orderBy: { sort_order: "asc" } }),
   ]);
 
+  // Add backward-compatible category field
+  const placesWithCategory = places.map((p) => {
+    const primary = p.categories.find((c) => c.is_primary) || p.categories[0];
+    return { ...p, category: primary?.category || null, category_id: primary?.category_id || null };
+  });
+
   // Sort by average rating if selected
-  let sortedPlaces = places;
+  let sortedPlaces = placesWithCategory;
   if (sort === "rating") {
-    sortedPlaces = [...places].sort((a, b) => {
-      const avgA = a.reviews.length > 0 ? a.reviews.reduce((s, r) => s + r.rating, 0) / a.reviews.length : 0;
-      const avgB = b.reviews.length > 0 ? b.reviews.reduce((s, r) => s + r.rating, 0) / b.reviews.length : 0;
+    sortedPlaces = [...placesWithCategory].sort((a, b) => {
+      const avgA = a.comments.length > 0 ? a.comments.reduce((s, r) => s + r.rating, 0) / a.comments.length : 0;
+      const avgB = b.comments.length > 0 ? b.comments.reduce((s, r) => s + r.rating, 0) / b.comments.length : 0;
       return avgB - avgA;
     });
   }
