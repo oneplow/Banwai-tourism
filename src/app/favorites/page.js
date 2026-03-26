@@ -62,14 +62,22 @@ export default function FavoritesPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {favorites.map((fav) => {
               const place = fav.place;
+              const primaryCategory = place?.categories?.find((c) => c.is_primary)?.category || place?.categories?.[0]?.category;
+
               return (
                 <div key={fav.favorite_id} className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow p-4 flex gap-3">
-                  <div className="w-14 h-14 rounded-xl flex items-center justify-center text-[#2d6a4f] flex-shrink-0 bg-[#2d6a4f]/10">
-                    {place?.category?.icon || <ImageIcon className="w-6 h-6" />}
-                  </div>
+                  {place.cover_image ? (
+                    <div className="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0">
+                      <img src={place.cover_image} alt={place.name} className="w-full h-full object-cover" />
+                    </div>
+                  ) : (
+                    <div className="w-16 h-16 rounded-xl flex items-center justify-center text-[#2d6a4f] flex-shrink-0 bg-[#2d6a4f]/10" style={primaryCategory?.pin_color ? { backgroundColor: `${primaryCategory.pin_color}20`, color: primaryCategory.pin_color } : {}}>
+                      {primaryCategory ? <span className="text-2xl">{primaryCategory.icon}</span> : <ImageIcon className="w-6 h-6" />}
+                    </div>
+                  )}
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-gray-800 text-sm mb-0.5 truncate">{place?.name}</div>
-                    <div className="text-xs text-gray-400 mb-2">{place?.category?.name}</div>
+                    <div className="text-xs text-gray-400 mb-2">{primaryCategory?.name || "ทั่วไป"}</div>
                     <div className="flex gap-2">
                       <Link href={`/places/${place?.place_id}`}
                         className="text-xs px-2.5 py-1 bg-[#2d6a4f] text-white rounded-lg hover:bg-[#1b4332] transition-colors">

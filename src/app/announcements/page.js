@@ -59,7 +59,12 @@ export default async function AnnouncementsPage() {
                 <h2 className="font-display font-bold text-xl text-gray-900 mb-3">
                   {ann.title}
                 </h2>
-                <p className="text-gray-600 leading-relaxed">{ann.content}</p>
+                {ann.image_url && (
+                  <div className="mb-4 rounded-xl overflow-hidden bg-gray-50 border border-gray-100">
+                    <img src={ann.image_url} alt={ann.title} className="w-full max-h-[400px] object-cover" />
+                  </div>
+                )}
+                <p className="text-gray-600 leading-relaxed whitespace-pre-wrap">{ann.content}</p>
               </article>
             ))}
           </div>

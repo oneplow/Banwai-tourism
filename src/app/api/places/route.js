@@ -82,7 +82,6 @@ export async function POST(request) {
         images: {
           create: body.images?.map((img, index) => ({
             image_url: img.image_url,
-            caption: img.caption || null,
             sort_order: index,
           })) || [],
         },

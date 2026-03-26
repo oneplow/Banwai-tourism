@@ -60,6 +60,12 @@ export default function AdminAnnouncementsPage() {
                 </span>
               </div>
               <p className="text-xs text-gray-500 line-clamp-2">{item.content}</p>
+              {item.image_url && (
+                <div className="mt-2">
+                  <span className="text-[10px] bg-green-50 text-green-600 px-1.5 py-0.5 rounded border border-green-100">แนบรูป</span>
+                  <a href={item.image_url} target="_blank" rel="noreferrer" className="text-xs text-[#2d6a4f] hover:underline ml-1">ดูรูปภาพ</a>
+                </div>
+              )}
               <p suppressHydrationWarning className="text-xs text-gray-400 mt-1">{new Date(item.created_at).toLocaleDateString("th-TH", { year: "numeric", month: "long", day: "numeric" })}</p>
             </div>
             <button onClick={() => openEdit(item)} className="text-xs px-2.5 py-1 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 flex-shrink-0">

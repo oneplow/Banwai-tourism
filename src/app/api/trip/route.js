@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 
 export async function POST(request) {
   try {
-    const { days, interests, startTime, budget, travelers, note } = await request.json();
+    const { days, interests, startTime, budget, travelers, note, userLat, userLng } = await request.json();
 
     // Fetch all active places with categories
     const places = await prisma.place.findMany({
@@ -23,16 +23,33 @@ export async function POST(request) {
       return entry?.category || null;
     };
 
-    const placesContext = places
-      .map(
-        (p) =>
-          `- ${p.name} (${getPrimary(p)?.name || ''}): ${p.description?.slice(0, 200) || ""} | เวลา: ${p.open_hours || "ตลอดวัน"} | ที่อยู่: ${p.address || ""}`
-      )
+    // Haversine distance (km)
+    const haversine = (lat1, lng1, lat2, lng2) => {
+      const R = 6371;
+      const dLat = ((lat2 - lat1) * Math.PI) / 180;
+      const dLng = ((lng2 - lng1) * Math.PI) / 180;
+      const a = Math.sin(dLat / 2) ** 2 + Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    };
+
+    // Sort by proximity if GPS provided
+    const hasGps = userLat && userLng;
+    const sortedPlaces = hasGps
+      ? [...places].sort((a, b) => haversine(userLat, userLng, a.latitude, a.longitude) - haversine(userLat, userLng, b.latitude, b.longitude))
+      : places;
+
+    const placesContext = sortedPlaces
+      .map((p) => {
+        const dist = hasGps ? ` | ระยะห่าง: ${haversine(userLat, userLng, p.latitude, p.longitude).toFixed(1)} กม.` : "";
+        return `- ${p.name} (${getPrimary(p)?.name || ''}): ${p.description?.slice(0, 200) || ""} | เวลา: ${p.open_hours || "ตลอดวัน"} | ที่อยู่: ${p.address || ""}${dist}`;
+      })
       .join("\n");
+
+    const nearbyHint = hasGps ? "\n- ผู้ใช้เปิด GPS: กรุณาจัดลำดับสถานที่จากใกล้ไปไกลตามระยะทาง" : "";
 
     const prompt = `คุณคือไกด์ท้องถิ่นของตำบลบ้านหวาย ช่วยวางแผนทริปให้นักท่องเที่ยว
 
-ข้อมูลสถานที่ท่องเที่ยวในตำบลบ้านหวาย:
+ข้อมูลสถานที่ท่องเที่ยวในตำบลบ้านหวาย${hasGps ? " (เรียงจากใกล้ผู้ใช้ที่สุด)" : ""}:
 ${placesContext}
 
 ความต้องการของนักท่องเที่ยว:
@@ -41,7 +58,7 @@ ${placesContext}
 - เวลาเริ่ม: ${startTime || "08:00"}
 - งบประมาณ: ${budget || "ปานกลาง"}
 - จำนวนผู้เดินทาง: ${travelers || 2} คน
-${note ? `- หมายเหตุพิเศษ: ${note}` : ""}
+${note ? `- หมายเหตุพิเศษ: ${note}` : ""}${nearbyHint}
 
 กรุณาวางแผนทริปเป็น JSON เท่านั้น ตามรูปแบบนี้:
 {

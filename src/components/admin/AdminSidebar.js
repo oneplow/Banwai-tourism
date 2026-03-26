@@ -10,7 +10,6 @@ const NAV_ADMIN = [
   { href: "/admin/categories", label: "หมวดหมู่สถานที่", icon: <Layers className="w-5 h-5" /> },
   { href: "/admin/comments", label: "ความคิดเห็น", icon: <Star className="w-5 h-5" /> },
   { href: "/admin/announcements", label: "ประกาศข่าวสาร", icon: <Megaphone className="w-5 h-5" /> },
-  { href: "/admin/stats", label: "สถิติและรายงาน", icon: <TrendingUp className="w-5 h-5" /> },
   { href: "/admin/users", label: "จัดการผู้ใช้", icon: <User className="w-5 h-5" />, adminOnly: true },
   { href: "/admin/users", label: "สิทธิ์เจ้าหน้าที่", icon: <Shield className="w-5 h-5" />, staffOnly: true },
 ];

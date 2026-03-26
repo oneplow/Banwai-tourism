@@ -77,13 +77,13 @@ export default function AdminPlacesPage() {
       is_always_open: isAlwaysOpen,
       cover_image: place.cover_image || "",
       is_active: place.is_active ?? true,
-      images: place.images?.map(img => ({ image_url: img.image_url, caption: img.caption || "" })) || [],
+      images: place.images?.map(img => ({ image_url: img.image_url || "" })) || [],
     });
     setModal(place);
   };
 
   const addImageField = () => {
-    setForm({ ...form, images: [...form.images, { image_url: "", caption: "" }] });
+    setForm({ ...form, images: [...form.images, { image_url: "" }] });
   };
 
   const updateImageField = (index, field, value) => {
@@ -122,7 +122,7 @@ export default function AdminPlacesPage() {
   };
 
   const toggleActive = async (place) => {
-    const cleanImages = place.images?.map(img => ({ image_url: img.image_url, caption: img.caption || "" })) || [];
+    const cleanImages = place.images?.map(img => ({ image_url: img.image_url || "" })) || [];
     const catEntries = place.categories || [];
     const primaryEntry = catEntries.find((c) => c.is_primary) || catEntries[0];
     const res = await fetch(`/api/places/${place.place_id}`, {
@@ -296,13 +296,12 @@ export default function AdminPlacesPage() {
                             });
                           }
                         }}
-                        className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium border-2 transition-all ${
-                          isSelected
-                            ? isPrimary
-                              ? 'border-amber-400 bg-amber-50 text-amber-800 shadow-sm'
-                              : 'border-[#2d6a4f] bg-[#edf7f2] text-[#2d6a4f]'
-                            : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'
-                        }`}
+                        className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium border-2 transition-all ${isSelected
+                          ? isPrimary
+                            ? 'border-amber-400 bg-amber-50 text-amber-800 shadow-sm'
+                            : 'border-[#2d6a4f] bg-[#edf7f2] text-[#2d6a4f]'
+                          : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'
+                          }`}
                       >
                         <span className="w-3 h-3 rounded-full flex-shrink-0 border border-white shadow-sm" style={{ backgroundColor: c.pin_color || '#2d6a4f' }} />
                         {c.icon} {c.name}
@@ -323,11 +322,10 @@ export default function AdminPlacesPage() {
                             type="button"
                             key={catId}
                             onClick={() => setForm({ ...form, primary_category_id: catId })}
-                            className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${
-                              form.primary_category_id === catId
-                                ? 'border-amber-400 bg-amber-100 text-amber-800'
-                                : 'border-gray-200 bg-white text-gray-500 hover:border-amber-300'
-                            }`}
+                            className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${form.primary_category_id === catId
+                              ? 'border-amber-400 bg-amber-100 text-amber-800'
+                              : 'border-gray-200 bg-white text-gray-500 hover:border-amber-300'
+                              }`}
                           >
                             <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: cat.pin_color || '#2d6a4f' }} />
                             {cat.icon} {cat.name}
@@ -409,13 +407,6 @@ export default function AdminPlacesPage() {
                           onChange={(e) => updateImageField(index, "image_url", e.target.value)}
                           className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2d6a4f]"
                         />
-                        <input
-                          type="text"
-                          placeholder="คำบรรยายรูปภาพ (Caption)"
-                          value={img.caption}
-                          onChange={(e) => updateImageField(index, "caption", e.target.value)}
-                          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2d6a4f]"
-                        />
                       </div>
                       <button
                         type="button"
@@ -443,24 +434,24 @@ export default function AdminPlacesPage() {
                   <label className="text-xs text-[#2d6a4f] font-bold block mb-1.5 flex items-center gap-1">
                     📍 วางลิงก์ Google Maps เพื่อดึงพิกัดอัตโนมัติ
                   </label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={form.map_url !== undefined ? form.map_url : (form.map_url || "")}
                     placeholder="เช่น https://www.google.com/maps/place/... หรือ https://maps.app.goo.gl/..."
                     onChange={(e) => {
                       const url = e.target.value;
                       // 1. Try to match specific pin coordinates (!3d... !4d...)
                       let match = url.match(/!3d(-?\d+\.\d+)&?(?:.*?)!4d(-?\d+\.\d+)/) || url.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
-                      
+
                       // 2. Try search pin (q=)
                       if (!match) match = url.match(/q=(-?\d+\.\d+)%2C(-?\d+\.\d+)/) || url.match(/q=(-?\d+\.\d+),(-?\d+\.\d+)/);
-                      
+
                       // 3. Try generic pin (ll=)
                       if (!match) match = url.match(/ll=(-?\d+\.\d+)%2C(-?\d+\.\d+)/) || url.match(/ll=(-?\d+\.\d+),(-?\d+\.\d+)/);
-                      
+
                       // 4. Fallback to map center view (@lat,lng)
                       if (!match) match = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
-                      
+
                       if (match) {
                         setForm({ ...form, map_url: url, latitude: match[1], longitude: match[2] });
                         if (url !== form.map_url) toast("ดึงพิกัดจากลิงก์สำเร็จ!");
@@ -468,7 +459,7 @@ export default function AdminPlacesPage() {
                         setForm({ ...form, map_url: url });
                       }
                     }}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2d6a4f]" 
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#2d6a4f]"
                   />
                   <div className="text-[10px] text-gray-500 mt-1.5">
                     * รองรับลิงก์ยาวแบบเต็มที่มีพิกัด (ถ้าเป็นลิงก์สั้น goo.gl ให้เปิดในเว็บก่อนแล้วก๊อปปี้ลิงก์ยาวแถบด้านบนมาวาง)

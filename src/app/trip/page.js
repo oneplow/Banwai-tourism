@@ -1,5 +1,5 @@
 "use client";
-import { Bot, Sparkles, Map as MapIcon, Lightbulb, RefreshCw, Clock, Wallet, UserRound, CalendarDays, ChevronRight, ChevronLeft, Pencil, ArrowLeft } from "lucide-react";
+import { Bot, Sparkles, Map as MapIcon, Lightbulb, RefreshCw, Clock, Wallet, UserRound, CalendarDays, ChevronRight, ChevronLeft, Pencil, ArrowLeft, MapPin, LocateFixed } from "lucide-react";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
@@ -11,6 +11,16 @@ const STEPS = [
   { label: "สร้างแผน", icon: MapIcon },
 ];
 
+const REQUIREMENTS = [
+  { id: "elderly", label: "มีผู้สูงอายุ", icon: "👴" },
+  { id: "kids", label: "มีเด็กเล็ก", icon: "👶" },
+  { id: "wheelchair", label: "ต้องการทางเข้าเก้าอี้รถเข็น", icon: "♿" },
+  { id: "food", label: "เน้นอาหารท้องถิ่น", icon: "🍜" },
+  { id: "photo", label: "เน้นถ่ายรูป/เช็คอิน", icon: "📸" },
+  { id: "nature", label: "ชอบธรรมชาติ", icon: "🌿" },
+  { id: "history", label: "สนใจประวัติศาสตร์", icon: "🏛️" },
+];
+
 export default function TripPlannerPage() {
   const [step, setStep] = useState(0);
   const [form, setForm] = useState({
@@ -19,12 +29,16 @@ export default function TripPlannerPage() {
     startTime: "08:00",
     budget: "ปานกลาง",
     travelers: "2",
-    note: "",
+    requirements: [],
+    noteExtra: "",
   });
   const [plan, setPlan] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [categories, setCategories] = useState([]);
+  const [gpsEnabled, setGpsEnabled] = useState(false);
+  const [userCoords, setUserCoords] = useState(null);
+  const [gpsStatus, setGpsStatus] = useState(""); // "", "loading", "ok", "error"
 
   useEffect(() => {
     fetch("/api/categories")
@@ -39,17 +53,52 @@ export default function TripPlannerPage() {
       interests: f.interests.includes(i) ? f.interests.filter((x) => x !== i) : [...f.interests, i],
     }));
 
+  const toggleRequirement = (id) =>
+    setForm((f) => ({
+      ...f,
+      requirements: f.requirements.includes(id) ? f.requirements.filter((x) => x !== id) : [...f.requirements, id],
+    }));
+
+  const handleGpsToggle = () => {
+    if (gpsEnabled) {
+      setGpsEnabled(false);
+      setUserCoords(null);
+      setGpsStatus("");
+      return;
+    }
+    if (!navigator.geolocation) {
+      setGpsStatus("error");
+      return;
+    }
+    setGpsEnabled(true);
+    setGpsStatus("loading");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setUserCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setGpsStatus("ok");
+      },
+      () => {
+        setGpsStatus("error");
+        setGpsEnabled(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
   const generate = async () => {
     setLoading(true);
     setError("");
     setPlan(null);
     try {
+      const reqLabels = form.requirements.map((id) => REQUIREMENTS.find((r) => r.id === id)?.label).filter(Boolean);
       const res = await fetch("/api/trip", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...form,
           interests: form.interests.join(", ") || "ทั่วไป",
+          note: [...reqLabels, form.noteExtra].filter(Boolean).join(", "),
+          ...(gpsEnabled && userCoords ? { userLat: userCoords.lat, userLng: userCoords.lng } : {}),
         }),
       });
       const data = await res.json();
@@ -190,18 +239,57 @@ export default function TripPlannerPage() {
               </div>
             </div>
 
-            {/* Note */}
+            {/* Special Requirements */}
             <div>
-              <label className="text-xs font-medium text-gray-500 mb-1.5 block flex items-center gap-1">
-                <Pencil className="w-3 h-3" /> หมายเหตุ / ความต้องการพิเศษ (ไม่บังคับ)
+              <label className="text-xs font-medium text-gray-500 mb-2 block flex items-center gap-1">
+                <Pencil className="w-3 h-3" /> ความต้องการพิเศษ (ไม่บังคับ)
               </label>
+              <div className="flex flex-wrap gap-2">
+                {REQUIREMENTS.map((r) => (
+                  <button
+                    key={r.id}
+                    type="button"
+                    onClick={() => toggleRequirement(r.id)}
+                    className={`px-3 py-2 rounded-xl text-sm font-medium transition-all border flex items-center gap-1.5 ${
+                      form.requirements.includes(r.id)
+                        ? "bg-[#2d6a4f] text-white border-[#2d6a4f] shadow-md"
+                        : "bg-white text-gray-600 border-gray-200 hover:border-[#2d6a4f]/50 hover:bg-green-50/50"
+                    }`}
+                  >
+                    <span>{r.icon}</span> {r.label}
+                  </button>
+                ))}
+              </div>
               <textarea
-                value={form.note}
-                onChange={(e) => setForm({ ...form, note: e.target.value })}
-                placeholder="เช่น มีผู้สูงอายุร่วมเดินทาง, ต้องการเน้นอาหาร, อยากถ่ายรูปสวยๆ..."
-                rows={2}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-[#2d6a4f] focus:ring-1 focus:ring-[#2d6a4f]/20 resize-none"
+                value={form.noteExtra}
+                onChange={(e) => setForm({ ...form, noteExtra: e.target.value })}
+                placeholder="อื่นๆ เพิ่มเติม..."
+                rows={1}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-[#2d6a4f] focus:ring-1 focus:ring-[#2d6a4f]/20 resize-none mt-2.5"
               />
+            </div>
+
+            {/* GPS Nearby toggle */}
+            <div className="flex items-center justify-between bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl px-4 py-3">
+              <div className="flex items-center gap-2.5">
+                <LocateFixed className={`w-5 h-5 ${gpsEnabled ? "text-[#2d6a4f]" : "text-gray-400"}`} />
+                <div>
+                  <span className="text-sm font-medium text-gray-700">แนะนำจากตำแหน่งของฉัน</span>
+                  <p className="text-xs text-gray-400">เรียงสถานที่ใกล้คุณก่อน</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {gpsStatus === "loading" && <span className="text-xs text-amber-500 animate-pulse">กำลังค้นหา...</span>}
+                {gpsStatus === "ok" && <span className="text-xs text-green-600">✅ พบตำแหน่ง</span>}
+                {gpsStatus === "error" && <span className="text-xs text-red-500">❌ ไม่สามารถเข้าถึง</span>}
+                <button
+                  type="button"
+                  onClick={handleGpsToggle}
+                  className={`relative w-11 h-6 rounded-full transition-colors ${gpsEnabled ? "bg-[#2d6a4f]" : "bg-gray-300"}`}
+                >
+                  <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${gpsEnabled ? "translate-x-5" : ""}`} />
+                </button>
+              </div>
             </div>
 
             <button

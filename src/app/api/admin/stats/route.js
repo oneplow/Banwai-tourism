@@ -28,7 +28,11 @@ export async function GET(request) {
         place_id: true,
         name: true,
         view_count: true,
-        category: { select: { name: true, icon: true } },
+        categories: {
+          select: { category: { select: { name: true, icon: true } } },
+          orderBy: { is_primary: "desc" },
+          take: 1,
+        },
       },
     });
 

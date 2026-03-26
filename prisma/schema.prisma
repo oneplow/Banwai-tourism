@@ -82,7 +82,6 @@ model PlaceImage {
   image_id   Int    @id @default(autoincrement())
   place_id   Int
   image_url  String @db.VarChar(255)
-  caption    String? @db.VarChar(255)
   sort_order Int    @default(0)
 
   place Place @relation(fields: [place_id], references: [place_id])
