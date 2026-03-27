@@ -12,7 +12,7 @@ async function main() {
     create: {
       username: "admin",
       email: "admin@banwai.go.th",
-      password_hash: hashedPassword,
+      password: hashedPassword,
       role: "admin",
     },
   });

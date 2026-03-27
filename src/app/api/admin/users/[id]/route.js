@@ -6,9 +6,9 @@ export async function PUT(request, { params }) {
   const { id } = await params;
   const body = await request.json();
   const data = { username: body.username, email: body.email, role: body.role };
-  if (body.password) data.password_hash = await bcrypt.hash(body.password, 10);
+  if (body.password) data.password = await bcrypt.hash(body.password, 10);
   const user = await prisma.user.update({ where: { user_id: parseInt(id) }, data });
-  return NextResponse.json({ ...user, password_hash: undefined });
+  return NextResponse.json({ ...user, password: undefined });
 }
 
 export async function DELETE(request, { params }) {

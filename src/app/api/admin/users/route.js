@@ -7,7 +7,7 @@ export async function GET() {
     orderBy: { created_at: "desc" },
     include: { staff_permissions: { include: { place: { select: { name: true } } } } },
   });
-  return NextResponse.json(users.map((u) => ({ ...u, password_hash: undefined })));
+  return NextResponse.json(users.map((u) => ({ ...u, password: undefined })));
 }
 
 export async function POST(request) {
@@ -20,7 +20,7 @@ export async function POST(request) {
 
   const hash = await bcrypt.hash(body.password, 10);
   const user = await prisma.user.create({
-    data: { username: body.username, email: body.email, password_hash: hash, role: body.role || "staff" },
+    data: { username: body.username, email: body.email, password: hash, role: body.role || "staff" },
   });
-  return NextResponse.json({ ...user, password_hash: undefined }, { status: 201 });
+  return NextResponse.json({ ...user, password: undefined }, { status: 201 });
 }

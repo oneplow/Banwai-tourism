@@ -428,7 +428,7 @@ export default function MapView({ places = [], categories = [] }) {
 
       {/* ── Detail panel (Mobile Bottom Sheet / Desktop Sidebar) ── */}
       <div
-        className={`absolute left-0 right-0 top-12 bottom-0 md:left-auto md:w-[40%] md:top-0 h-auto md:h-full bg-white flex flex-col z-50 transition-transform duration-300 ease-out shadow-[0_-10px_40px_rgba(0,0,0,0.15)] md:shadow-2xl rounded-t-3xl md:rounded-none overflow-hidden ${detailOpen ? "translate-y-0 md:translate-y-0 md:translate-x-0" : "translate-y-full md:translate-y-0 md:translate-x-full"}`}
+        className={`absolute left-0 right-0 top-[45%] bottom-0 md:left-auto md:w-[40%] md:top-0 h-[55%] md:h-full bg-white flex flex-col z-50 transition-transform duration-300 ease-out shadow-[0_-10px_40px_rgba(0,0,0,0.15)] md:shadow-2xl rounded-t-3xl md:rounded-none overflow-hidden ${detailOpen ? "translate-y-0 md:translate-y-0 md:translate-x-0" : "translate-y-full md:translate-y-0 md:translate-x-full"}`}
       >
         {detailPlace && (
           <div className="flex-1 overflow-y-auto no-scrollbar min-h-0 relative flex flex-col bg-white">

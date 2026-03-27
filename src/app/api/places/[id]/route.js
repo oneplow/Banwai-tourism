@@ -73,7 +73,6 @@ export async function PUT(request, { params }) {
           deleteMany: {},
           create: body.images?.map((img, index) => ({
             image_url: img.image_url,
-            caption: img.caption || null,
             sort_order: index,
           })) || [],
         },

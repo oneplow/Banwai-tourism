@@ -26,50 +26,13 @@ export default function Navbar() {
 
         {/* Desktop Menu */}
         <div className="hidden md:flex items-center gap-6 text-sm font-body">
-          <Link
-            href="/"
-            className="text-gray-600 hover:text-[#2d6a4f] transition-colors"
-          >
-            หน้าแรก
-          </Link>
-          <Link
-            href="/places"
-            className="text-gray-600 hover:text-[#2d6a4f] transition-colors"
-          >
-            สถานที่ท่องเที่ยว
-          </Link>
-          <Link
-            href="/map"
-            className="text-gray-600 hover:text-[#2d6a4f] transition-colors"
-          >
-            แผนที่
-          </Link>
-          <Link
-            href="/trip"
-            className="text-gray-600 hover:text-[#2d6a4f] transition-colors"
-          >
-            จัดทริป AI
-          </Link>
-          <Link
-            href="/favorites"
-            className="text-gray-600 hover:text-[#2d6a4f] transition-colors flex items-center gap-1"
-          >
-            {/* <Heart className="w-4 h-4 text-red-500 fill-red-500" /> */} บันทึก
-          </Link>
-          <Link
-            href="/announcements"
-            className="text-gray-600 hover:text-[#2d6a4f] transition-colors"
-          >
-            ข่าวสาร
-          </Link>
-          {/* <Link
-            href="/admin"
-            className="px-4 py-1.5 rounded-full bg-[#2d6a4f] text-white hover:bg-[#1b4332] transition-colors text-sm"
-          >
-            จัดการระบบ
-          </Link> */}
+          <Link href="/" className="text-gray-600 hover:text-[#2d6a4f] transition-colors">หน้าแรก</Link>
+          <Link href="/places" className="text-gray-600 hover:text-[#2d6a4f] transition-colors">สถานที่ท่องเที่ยว</Link>
+          <Link href="/map" className="text-gray-600 hover:text-[#2d6a4f] transition-colors">แผนที่</Link>
+          <Link href="/trip" className="text-gray-600 hover:text-[#2d6a4f] transition-colors">จัดทริป AI</Link>
+          <Link href="/favorites" className="text-gray-600 hover:text-[#2d6a4f] transition-colors">บันทึก</Link>
+          <Link href="/announcements" className="text-gray-600 hover:text-[#2d6a4f] transition-colors">ข่าวสาร</Link>
         </div>
-
         {/* Mobile Menu Button */}
         <button
           className="md:hidden p-2 text-gray-600"
@@ -88,16 +51,15 @@ export default function Navbar() {
         </button>
       </div>
 
-      {/* Mobile Menu */}
+      {/* Mobile Menu (Hamburger Dropdown) */}
       {menuOpen && (
-        <div className="md:hidden bg-white border-t border-gray-100 px-4 py-3 flex flex-col gap-3 text-sm font-body">
+        <div className="md:hidden bg-white border-t border-gray-100 px-4 py-3 flex flex-col gap-3 text-sm font-body shadow-lg">
           <Link href="/" className="text-gray-700 py-1" onClick={() => setMenuOpen(false)}>หน้าแรก</Link>
           <Link href="/places" className="text-gray-700 py-1" onClick={() => setMenuOpen(false)}>สถานที่ท่องเที่ยว</Link>
           <Link href="/map" className="text-gray-700 py-1" onClick={() => setMenuOpen(false)}>แผนที่</Link>
           <Link href="/trip" className="text-gray-700 py-1" onClick={() => setMenuOpen(false)}>จัดทริป AI</Link>
-          <Link href="/favorites" className="text-gray-700 py-1 flex items-center gap-1.5" onClick={() => setMenuOpen(false)}><Heart className="w-4 h-4 text-red-500 fill-red-500" /> บันทึก</Link>
+          <Link href="/favorites" className="text-gray-700 py-1 flex items-center gap-1.5" onClick={() => setMenuOpen(false)}>บันทึก</Link>
           <Link href="/announcements" className="text-gray-700 py-1" onClick={() => setMenuOpen(false)}>ข่าวสาร</Link>
-          <Link href="/admin" className="text-[#2d6a4f] font-medium py-1" onClick={() => setMenuOpen(false)}>จัดการระบบ</Link>
         </div>
       )}
     </nav>

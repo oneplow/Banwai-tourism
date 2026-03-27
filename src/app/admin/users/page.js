@@ -28,7 +28,7 @@ export default async function AdminUsersPage() {
 
   const safeUsers = users.map((u) => ({
     ...u,
-    password_hash: undefined,
+    password: undefined,
     created_at: u.created_at.toISOString(),
     updated_at: u.updated_at.toISOString(),
   }));

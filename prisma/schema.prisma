@@ -14,7 +14,7 @@ model User {
   user_id       Int      @id @default(autoincrement())
   username      String   @db.VarChar(100)
   email         String   @unique @db.VarChar(150)
-  password_hash String   @db.VarChar(255)
+  password String   @db.VarChar(255)
   role          UserRole @default(staff)
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
@@ -136,7 +136,7 @@ model Announcement {
   title           String   @db.VarChar(200)
   content         String   @db.Text
   image_url       String?  @db.VarChar(255)
-  is_published    Boolean  @default(false)
+  is_published    Boolean  @default(true)
   created_at      DateTime @default(now())
   updated_at      DateTime @updatedAt
 
